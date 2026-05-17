@@ -1,0 +1,1463 @@
+/**
+ * Copyright 2026 Aries Harbinger
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+// --- Imports ---
+const __UNDEFINED__ = void 0;
+
+// noble
+import {
+    // algorithms
+    aes, chacha, salsa,
+    noble_hmac, sha2, sha3, sha3_addons, blake3_mod, blake2, legacy,
+    ml_kem512, ml_kem768, ml_kem1024,
+    ml_dsa44, ml_dsa65, ml_dsa87,
+    slh_dsa, falcon512, falcon1024,
+
+    // array lists
+    nobleMlkemMap, nobleMldsaMap, nobleFalconMap,
+    nobleCipherMap, nobleHmacMap, nobleHashMap,
+    nobleXofMap, nobleKmacMap, nobleAlgMap
+} from '@stless/utils/noble';
+
+// obj wrapper
+import { fwrapObj } from '@stless/utils/fwrap';
+
+// wordlist
+import { words, wordMap } from '@stless/utils/65536';
+import * as bip39 from 'bip39';
+
+// csprng wrapper (ths)
+import * as ths_wrapper from 'ths-csprng';
+import * as ths_utils from 'ths-csprng/utils';
+
+// encoding formats
+import * as base from '@scure/base';
+import * as wifLib from 'wif';
+import encodeQR from 'qr';
+
+// nodejs built-in
+import { crc32 } from 'node:zlib';
+import { URL } from 'node:url';
+import { promisify } from 'node:util';
+import {
+    createHash, createHmac,
+    createCipheriv, createDecipheriv,
+    argon2 as _argon2, timingSafeEqual,
+    getCiphers, getHashes
+} from 'node:crypto';
+
+
+/**
+ * Internal Constants and Utility Helpers
+ * @type {Object}
+ * @readonly
+ * @private
+ */
+const _constant = fwrapObj({
+    /**
+     * @type {Function} Promisified Argon2id hashing function
+     * @private
+     */
+    argon2: promisify(_argon2),
+
+    /**
+     * @type {string[]} List of ciphers supported by the current Node.js runtime
+     * @private
+     */
+    getCiphers: getCiphers(),
+
+    /**
+     * @type {string[]} List of hashes supported by the current Node.js runtime
+     * @private
+     */
+    getHashes:  getHashes(),
+
+
+    /** 
+     * RegEx patterns used to filter out weak or redundant algorithms 
+     * @type {Object}
+     * @readonly
+     * @private
+     */
+    unnecessary: {
+        cipher: /128|192|\-ecb|\-ccm|\-cbc|id\-|des\-|aria|camellia|sm4|des3|wrap|^[a-z0-9]+256$/i,
+        hmac:   /rsa|ssl3|id-rsassa|sm3|shake|kmac|blake|keccak|sha3\-/i,
+        hash:   /rsa|ssl3|id-rsassa|sm3|shake|kmac/i
+    },
+
+
+    /** 
+     * BIP39 Multi-language wordlists
+     * @type {Object}
+     * @readonly
+     * @private
+     */
+    bip39_lang: {
+        english: bip39.wordlists.english,
+        french: bip39.wordlists.french,
+        spanish: bip39.wordlists.spanish,
+        italian: bip39.wordlists.italian,
+        portuguese: bip39.wordlists.portuguese,
+        czech: bip39.wordlists.czech
+    },
+
+
+    /** 
+     * Collection of Scure-base encoding/decoding codecs 
+     * @type {Object}
+     * @readonly
+     * @private
+     */
+    codec: {
+        // Standard bases
+        'base16': base.base16,
+        'base32': base.base32,
+        'base58': base.base58,
+        'base64': base.base64,
+
+        // Flavors
+        'base58xmr': base.base58xmr,
+        'base58xrp': base.base58xrp,
+        'base64url': base.base64url,
+        'base32hex': base.base32hex,
+        'base32crockford': base.base32crockford,
+        'base58check': base.createBase58check(sha2.sha256),
+
+        // Bitcoin/Lightning address format
+        'bech32':  base.bech32,
+        'bech32m': base.bech32m
+    },
+
+
+    /**
+     * Resolves an algorithm from a noble map using normalized naming.
+     * @param {string} name - Algorithm name
+     * @param {string} nameErr - Category name for error reporting
+     * @param {Record<string, Function>} nobleMap - The map to search within
+     * @throws {Error} If algorithm is unsupported
+     * @returns {Function}
+     * @private
+     */
+    getNobleFunc(name, nameErr, nobleMap) {
+        const _fn = nobleMap[name?.toLowerCase().replace(/-/g, '_')];
+        if (!_fn) throw new Error(`Unsupported or missing ${nameErr}: ${name}`);
+        return _fn;
+    },
+
+
+    /**
+     * Retrieves a BIP39 wordlist for a specific language.
+     * @param {string} [lang='english'] - ISO language name
+     * @throws {Error} If language is unsupported
+     * @returns {string[]}
+     * @private
+     */
+    getWordlist(lang = 'english') {
+        const list = _constant.bip39_lang;
+        if (list[lang]) return list[lang];
+
+        throw new Error(`Unsupported language type: ${lang}`);
+    },
+
+
+    /**
+     * Generates a checksum word from a phrase using CRC32.
+     * Folds a 32-bit hash into a 16-bit index for the 65536 wordlist.
+     * @param {string|Buffer} phrase - The input to checksum
+     * @returns {string} A single word from the 2^16 wordlist
+     * @private
+     */
+    getChecksumWord(phrase) {
+        const val = crc32(phrase);
+
+        // "Fold" the 32-bit hash into a 16-bit index
+        // This ensures the word comes from the entire 65536 list
+        const wordIndex = (val >>> 16) ^ (val & 0xFFFF);
+        return words[wordIndex >>> 0];
+    }
+});
+
+
+/**
+ * Main Utility Engine
+ * @type {Object}
+ * @readonly
+ */
+const Utils = fwrapObj({
+
+    /**
+     * Direct access to the THS (Temporal-Hardening Solution) wrapper.
+     * Provides core entropy and random fill functions.
+     * @returns {Object} The default export of the 'ths-csprng' module.
+     */
+    get ths_wrapper() {
+        return ths_wrapper.default;
+    },
+
+
+    /**
+     * Direct access to THS auxiliary utilities.
+     * @returns {Object} The default export of the 'ths-csprng/utils' module.
+     */
+    get ths_utils() {
+        return ths_utils.default;
+    },
+
+
+    /**
+     * Comprehensive registry of supported cryptographic algorithm names.
+     * Categorized by PQC (Post-Quantum), Extra (Noble/Cross-platform), and Crypto (Native Node.js).
+     * Filtered to exclude insecure or unnecessary primitives for enhanced security.
+     * @returns {Object} A wrapped, read-only map of algorithm identifiers.
+     */
+    get names() {
+        const list = {
+            'pqc': {
+                mlkem: Object.keys(nobleMlkemMap),
+                mldsa: Object.keys(nobleMldsaMap),
+                slhdsa: Object.keys(slh_dsa).filter(name => !name.includes('PARAMS')),
+                falcon: Object.keys(nobleFalconMap)
+            },
+            'extra': {
+                nobles: Object.keys(nobleAlgMap),
+                ciphers: Object.keys(nobleCipherMap),
+                hashes: Object.keys(nobleHashMap),
+                hmac_hashes: Object.keys(nobleHmacMap),
+                xofs: Object.keys(nobleXofMap),
+                keyed_xofs: Object.keys(nobleKmacMap)
+            },
+            'crypto': {
+                ciphers: _constant.getCiphers.filter(_ => !_constant.unnecessary.cipher.test(_)),
+                hashes: _constant.getHashes.filter(_ => !_constant.unnecessary.hash.test(_)),
+                hmac_hashes: _constant.getHashes.filter(_ => !_constant.unnecessary.hmac.test(_)),
+                xofs: _constant.getHashes.filter(_ => /shake/i.test(_))
+            }
+        };
+
+        list.default = list.crypto;
+        return fwrapObj(list);
+    },
+
+
+    /* --- Type Assertion Primitiaries (Dynamic) --- */
+
+    /**
+     * @method isString
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches string.
+     */
+    /**
+     * @method isNumber
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches number.
+     */
+    /**
+     * @method isBoolean
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches boolean.
+     */
+    /**
+     * @method isObject
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches object and is not null.
+     */
+    /**
+     * @method isUndefined
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches undefined.
+     */
+    /**
+     * @method isFunction
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches function.
+     */
+    /**
+     * @method isSymbol
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches symbol.
+     */
+    /**
+     * @method isBigInt
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches bigint.
+     */
+    ...['String', 'Number', 'Boolean', 'Object', 'Undefined', 'Function', 'Symbol', 'BigInt'].reduce((acc, name) => {
+        acc[`is${name}`] = input => (input !== null && name.toLowerCase() === typeof input);
+        return acc;
+    }, {}),
+
+
+    /* --- Scure-Base Codec Wrappers (Dynamic) --- */
+
+    /**
+     * @method fromBase16
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase16
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase32
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase32
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase58
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase58
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase64
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase64
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase64Url
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase64Url
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    ...['Base16', 'Base32', 'Base58', 'Base64', 'Base64Url'].reduce((acc, name) => {
+        acc[`from${name}`] = input => Utils.buff(Utils.codec(name.toLowerCase()).decode(input), { clear: true });
+        acc[`to${name}`] = (input, clear = false) => {
+            const result = Utils.codec(name.toLowerCase()).encode(input);
+            return clear && Utils.zeroBuf(input), result;
+        };
+        return acc;
+    }, {}),
+
+
+    /**
+     * Evaluates truthiness with optional length checks.
+     * @param {*} input - Value to evaluate.
+     * @param {boolean} [checkLength=false] - If true, evaluates if object/array holds length >= 1.
+     * @returns {boolean}
+     */
+    bool(input, checkLength = false) {
+        return checkLength ? (!!input && input.length >= 1) : !!input;
+    },
+
+
+    /**
+     * Securely clones an input buffer section into standard runtime allocations.
+     * @param {Buffer|Uint8Array} a - Target buffer instance to duplicate.
+     * @param {number} len - Total explicit depth size to extract.
+     * @param {boolean} [clear=false] - When true, triggers absolute volatile erasure on original buffer.
+     * @returns {Buffer} Cloned clean buffer workspace.
+     */
+    copyBuf(a, len, clear = false) {
+        const b = Utils.alloc(len);
+        a.copy(b, 0, 0, len);
+        clear && Utils.zeroBuf(a);
+        return b;
+    },
+
+
+    /**
+     * Generates random bytes with optional time-hardening.
+     * @param {number} len - Byte length.
+     * @param {boolean} isHardenRNG - If true, applies THS hardening; else standard CSPRNG.
+     * @param {Object} [conf] - Configuration for THS logic.
+     * @returns {Promise<Buffer>} A hardened or standard buffer.
+     */
+    async hardenRNG(len, isHardenRNG, conf) {
+        if (!isHardenRNG) {
+            // Use a standard CSPRNG source
+            const a = Utils.ths_wrapper.fillRandom(new Uint8Array(len));
+            return Utils.buff(a, { clear: true });
+        }
+
+        // Use Temporal-Hardening Solution wrapper on CSPRNG
+        return await Utils.ths_wrapper.random(len, Utils.isEmptyObject(conf, 'void'));
+    },
+
+
+    /**
+     * Normalizes an input into a URL object.
+     * @param {string|URL} u - The URI string or object.
+     * @returns {URL}
+     */
+    parseURI(u) {
+        return Utils.isString(u)
+            ? new URL(u)
+            : u;
+    },
+
+
+    /**
+     * Converts value to string with optional Unicode normalization.
+     * @param {*} a - Input value.
+     * @param {string|null} [type='NFC'] - Normalization form (NFC, NFD, etc).
+     * @returns {string}
+     */
+    toStr(a, type = 'NFC') {
+        const b = String(a);
+        if (!type) return b;
+        return b.normalize(type);
+    },
+
+
+    /**
+     * Checks if an object is empty.
+     * @param {*} val - Target object.
+     * @param {boolean|string} [isBoolean=true] - If 'void', returns undefined on empty; 
+     * if false, returns empty object on empty.
+     * @returns {boolean|Object|undefined}
+     */
+    isEmptyObject(val, isBoolean = true) {
+        const isObj = Utils.isTrueObject(val);
+        const isEmpty = isObj && Object.keys(val).length <= 0;
+
+        if ('void' === isBoolean)
+            return (!isObj || isEmpty) ? __UNDEFINED__ : val;
+
+        if (isBoolean === false)
+            return (!isObj || isEmpty) ? {} : val;
+
+        return isObj && isEmpty;
+    },
+
+
+    /**
+     * Strictly checks if a value is a plain JavaScript object.
+     * @param {*} val 
+     * @returns {boolean}
+     */
+    isTrueObject(val) {
+        return Object.prototype.toString.call(val) === '[object Object]';
+    },
+
+
+    /**
+     * Asynchronous try-catch wrapper for clean flow control.
+     * @param {Function} logic - Async function to execute.
+     * @param {Function} [cb_err] - Error callback.
+     * @param {Function} [cb_last] - Finally callback.
+     * @param {boolean} [isThrow=true] - Whether to re-throw the error.
+     * @returns {Promise<*>}
+     */
+    async wrapTry(logic, cb_err, cb_last, isThrow = true) {
+        try       { return await logic(); }
+        catch (e) { cb_err?.(e); if (isThrow) throw e; }
+        finally   { cb_last?.(); }
+    },
+
+
+    /**
+     * Synchronous try-catch wrapper for clean flow control.
+     * @param {Function} logic - Function to execute.
+     * @param {Function} [cb_err] - Error callback.
+     * @param {Function} [cb_last] - Finally callback.
+     * @param {boolean} [isThrow=true] - Whether to re-throw the error.
+     * @returns {*}
+     */
+    wrapTrySync(logic, cb_err, cb_last, isThrow = true) {
+        try       { return logic(); }
+        catch (e) { cb_err?.(e); if (isThrow) throw e; }
+        finally   { cb_last?.(); }
+    },
+
+
+    /**
+     * Overwrites buffers/arrays with zeros for memory security.
+     * @param {...(Buffer|Uint8Array|ArrayBuffer)} args - Buffers to wipe.
+     */
+    zeroBuf(...args) {
+        for (const buf of args) {
+            buf?.fill?.(0);
+            (buf instanceof ArrayBuffer) &&
+                new Uint8Array(buf).fill(0);
+        }
+    },
+
+
+    /**
+     * Constant-time comparison of two buffers or strings.
+     * Prevents timing attacks by ensuring comparison time is independent of input values.
+     * @param {string|Buffer|Uint8Array} a - First input.
+     * @param {string|Buffer|Uint8Array} b - Second input.
+     * @param {Object} [opts] - Comparison options.
+     * @param {string} [opts.encoding1='utf-8'] - Encoding used if 'a' input is string.
+     * @param {string} [opts.encoding2='utf-8'] - Encoding used if 'b' input is string.
+     * @param {boolean} [opts.harden=false] - If true, compares SHA3-512 hashes of the inputs instead of raw data.
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out both inputs after comparison.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {boolean} True if inputs (or their hashes) are identical.
+     */
+    compare(a, b, opts, cb_last = null) {
+        const { encoding1 = 'utf-8', encoding2 = 'utf-8', harden = false, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+        let h1, h2, bufA, bufB;
+
+        return Utils.wrapTrySync(() => {
+            bufA = Utils.buff(a, { encoding: encoding1 });
+            bufB = Utils.buff(b, { encoding: encoding2 });
+
+            if (!harden) {
+                return (bufA.length !== bufB.length)
+                    ? !timingSafeEqual(bufA, bufA)   // always false
+                    :  timingSafeEqual(bufA, bufB);
+            }
+
+            h1 = Utils.getHash('sha3-512').update(bufA).digest();
+            h2 = Utils.getHash('sha3-512').update(bufB).digest();
+
+            const result = timingSafeEqual(h1, h2);
+            return result;
+
+        }, null, () => {
+            Utils.zeroBuf(bufA, bufB, h1, h2);
+            h1 = h2 = bufA = bufB = __UNDEFINED__;
+            clear && Utils.zeroBuf(a, b);
+            cb_last?.();
+
+        }, isThrow);
+    },
+
+
+    /**
+     * Unified buffer converter. Handles strings, binary, and custom encodings.
+     * @param {*} a - Input to convert.
+     * @param {Object} [opts] - Options (encoding, clear, isThrow).
+     * @param {string} [opts.encoding='utf-8'] - Encoding used if inputs are strings.
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out input.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Buffer}
+     */
+    buff(a, opts, cb_last = null) {
+        const { encoding = 'utf-8', clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+        let view, result;
+
+        return Utils.wrapTrySync(() => {
+            // Handle null
+            if (a == null) return Utils.alloc(1);
+
+            // Handle Strings
+            if (Utils.isString(a)) {
+                if (!encoding) {
+                    result = Buffer.from(a);
+
+                } else {
+                    result = Buffer.isEncoding(encoding) 
+                        ? Buffer.from(a, encoding) 
+                        : Buffer.from(Utils.codec(encoding).decode(a));
+                }
+
+                return result;
+            }
+
+            // Handle Binary (Buffer, Uint8Array, ArrayBuffer, etc.)
+            if (Buffer.isBuffer(a))
+                return Buffer.from(a);
+
+            if (a instanceof Uint8Array || a instanceof ArrayBuffer || a.buffer instanceof ArrayBuffer) {
+                view = a instanceof ArrayBuffer ? new Uint8Array(a) : a;
+                result = Buffer.from(Uint8Array.from(view));
+                return result;
+            }
+
+            // Fallback for Arrays or other iterable types
+            return Buffer.from(a);
+
+        }, null, () => {
+            clear && Utils.zeroBuf(a);
+            view = __UNDEFINED__;
+            cb_last?.();
+
+        }, isThrow);
+    },
+
+
+    /**
+     * Allocates a new buffer of specified length.
+     * @param {number} len - Buffer size.
+     * @returns {Buffer}
+     */
+    alloc(len) {
+        return Buffer
+            .allocUnsafe(len)  // uninitialized system memory
+            .fill(0);          // immediate wipe with zeros
+    },
+
+
+    /**
+     * Performs a bitwise XOR between two buffers.
+     * @param {Uint8Array|Buffer} a - First buffer.
+     * @param {Uint8Array|Buffer} b - Second buffer.
+     * @param {boolean} [inPlaceXor=false] - If true, modifies buffer 'a' directly.
+     * @returns {Uint8Array|Buffer}
+     */
+    xorBytes(a, b, inPlaceXor = false) {
+        let c = inPlaceXor ? a : Utils.buff(a);
+        let i = 0;
+
+        while (i < b.length) {
+            c[i] ^= b[i];
+            i++;
+        }
+
+        return i = __UNDEFINED__, c;
+    },
+
+
+    /**
+     * Shuffles or Unshuffles an array using a provided mask as entropy.
+     * @param {Array} array - Target array.
+     * @param {Uint8Array|number[]} mask - Entropy source for shuffling.
+     * @param {boolean} [reverse=false] - If true, reverses the shuffle.
+     * @returns {Array} The shuffled/unshuffled result.
+     */
+    shuffleArr(array, mask, reverse = false) {
+        const result = [...array];
+        let n = result.length;
+        let i, j;
+
+        // Mapping bytes to indices
+        if (!reverse) {
+            for (i = n - 1; i > 0; i--) {
+                j = mask[mask.length - 1 - i] % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+
+        } else {
+            for (i = 1; i < n; i++) {
+                j = mask[mask.length - 1 - i] % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+        }
+
+        return i = j = n = __UNDEFINED__, result;
+    },
+
+
+    /**
+     * Formats a space-separated string into a numbered list.
+     * @param {string} w - Input text.
+     * @returns {string} Numbered multiline string.
+     */
+    splitFormat(w) {
+        return w
+            .split(' ')
+            .map((word, i) => `${i+1}. ${word}`)
+            .join('\n');
+    },
+
+
+    /**
+     * Retrieves an encoding/decoding codec by name with a transparent proxy interface.
+     * Supports base16, base32, base58, base64, and variants like bech32/bech32m.
+     * @param {string} name - Codec name (e.g., 'base58', 'bech32m').
+     * @param {Object} [opts] - Options including error handling.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{
+     *   encode: function(...*): string,
+     *   decode: function(...*): *,
+     *   encodeFromBytes?: function(...*): string,
+     *   decodeToBytes?: function(...*): Uint8Array,
+     *   decodeUnsafe?: function(...*): *,
+     *   fromWords?: function(...*): Uint8Array,
+     *   fromWordsUnsafe?: function(...*): *,
+     *   toWords?: function(...*): number[]
+     * }}
+     */
+    codec(name, opts, cb_last = null) {
+        const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const coder = _constant.codec[name?.toLowerCase().replace(/-/g, '')];
+            if (!coder) throw new Error(`Unsupported codec: ${name}`);
+
+            // Build out a cleanly wrapped proxy interface using flexible rest params
+            const target = {};
+            const methods = [
+                'encode', 'decode', 
+                'encodeFromBytes', 'decodeToBytes', 'decodeUnsafe', 
+                'fromWords', 'fromWordsUnsafe', 'toWords'
+            ];
+
+            for (const method of methods) {
+                if (Utils.isFunction(coder[method])) {
+                    target[method] = (...args) => coder[method](...args);
+                }
+            }
+
+            return fwrapObj(target);
+        }, null, cb_last, isThrow);
+    },
+
+
+    /**
+     * Direct access to specific Noble algorithm modules.
+     * @param {string} name - The algorithm name.
+     * @param {Object} [opts] - Options including error handling.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Object} The algorithm module/function.
+     */
+    noble(name, opts, cb_last = null) {
+        const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => _constant.getNobleFunc(name, 'noble', nobleAlgMap), null, cb_last, isThrow);
+    },
+
+    // --- ML-KEM (FIPS 203 / Kyber) ---
+    /**
+     * Generates a keypair for ML-KEM (Post-Quantum Key Encapsulation).
+     * @param {string} name - ML-KEM variant ('ml-kem-512', 'ml-kem-768', or 'ml-kem-1024').
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the first 64 bytes).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    mlkem(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const alg = _constant.getNobleFunc(name, 'ML-KEM variant', nobleMlkemMap);
+            return alg.keygen(seed.subarray(0, 64));
+        }, null, () => {
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- ML-DSA (FIPS 204 / Dilithium) ---
+    /**
+     * Generates a keypair for ML-DSA (Post-Quantum Digital Signature).
+     * @param {string} name - ML-DSA variant ('ml-dsa-44', 'ml-dsa-65', or 'ml-dsa-87').
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the first 32 bytes).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    mldsa(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const alg = _constant.getNobleFunc(name, 'ML-DSA variant', nobleMldsaMap);
+            return alg.keygen(seed.subarray(0, 32));
+        }, null, () => {
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- SLH-DSA (FIPS 205 / SPHINCS+) ---
+    /**
+     * Generates a keypair for SLH-DSA (Stateless Hash-Based Signatures).
+     * @param {string} name - SLH-DSA variant from noble.
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the
+     * first 48, 72, or 96 bytes depending on security level).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    slhdsa(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+        let size, alg;
+
+        return Utils.wrapTrySync(() => {
+            alg = _constant.getNobleFunc(name, 'SLH-DSA variant', slh_dsa);
+            size = 48;
+
+            if (name.includes('192')) size = 72;
+            if (name.includes('256')) size = 96;
+
+            return alg.keygen(seed.subarray(0, size));
+        }, null, () => {
+            size = alg = __UNDEFINED__;
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- Falcon (NIST Round 3) ---
+    /**
+     * Generates a keypair for Falcon (Fast Lattice-based Compact Signatures over NTRU).
+     * @param {string} name - Falcon variant ('falcon512' or 'falcon1024').
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the first 48 bytes).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    falcon(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const alg = _constant.getNobleFunc(name, 'Falcon variant', nobleFalconMap);
+            return alg.keygen(seed.subarray(0, 48));
+        }, null, () => {
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- CIPHERS: AES, ChaCha20, Salsa20 ---
+    /**
+     * Creates a cipher or decipher instance.
+     * @param {string} name - Algorithm name (e.g., 'aes-256-gcm', 'xchacha20-poly1305').
+     * @param {Object} opts - Configuration options.
+     * @param {Buffer|Uint8Array} opts.key - Secret key (length depends on algorithm).
+     * @param {Buffer|Uint8Array} opts.iv - Initialization Vector or Nonce.
+     * @param {boolean} opts.e - Encrypt flag (true: encrypt, false: decrypt).
+     * @param {boolean} [opts.extra=false] - Use Noble implementations (required for XChaCha20/XSalsa20).
+     * @param {Object} [opts.o] - Additional options passed to createCipheriv (e.g., { authTagLength: 16 }).
+     * @param {boolean} [opts.buffer=true] - Return buffer instead, in noble implementations,
+     * allowing the use of `Buffer.concat([cipher.update(data), cipher.final()])`
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Cipher|import('node:crypto').Decipher|Object} Node.js Cipher/Decipher or Noble Cipher instance.
+     */
+    getCipher(name, opts, cb_last = null) {
+        const { key, iv, extra = false, e, o, buffer = true, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (!name) throw new Error("Cipher name is required.");
+            if (!iv) throw new Error(`Initialization Vector (iv) is required for ${name}`);
+
+            if (extra) {
+                const cipherInit = _constant.getNobleFunc(name, 'cipher', nobleCipherMap);
+
+                return fwrapObj({
+                    'update': (data) => {
+                        let output;
+                        try {
+                            const instance = cipherInit(key, iv);
+                            if (!Utils.isFunction(instance)) {
+                                output = e
+                                    ? instance.encrypt(data)
+                                    : instance.decrypt(data);
+                            }
+                            else { output = instance(data); }
+                        }
+
+                        catch (err) {
+                            if (err instanceof TypeError && err.message.includes('data')) {
+                                output = cipherInit(key, iv, data);
+                            }
+                            else { throw err; }
+                        }
+
+                        return buffer
+                            ? Utils.buff(output, { clear: true })
+                            : output;
+                    },
+
+                    'final': () => Utils.alloc(0)
+                });
+            }
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.ciphers.includes(_name))
+                throw new Error(`Unsupported or missing cipher: ${name}`);
+
+            if ('boolean' !== typeof e)
+                throw new Error("Unsupported: 'e' must be a boolean  (true: encrypt, false: decrypt)");
+
+            const method = e ? createCipheriv : createDecipheriv;
+            return method(_name, key, iv, Utils.isEmptyObject(o, 'void'));
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- MAC: HMAC (Fixed-length hashes) ---
+    /**
+     * Creates an HMAC instance.
+     * @param {string} name - Hash algorithm name (e.g., 'sha256', 'md5').
+     * @param {Object} opts - Configuration options.
+     * @param {Buffer|Uint8Array} opts.key - HMAC secret key.
+     * @param {boolean} [opts.extra=false] - Use Noble HMAC implementation.
+     * @param {Object} [opts.o] - Internal options for Node.js createHmac.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Hmac|Object} Node.js Hmac or Noble HMAC instance.
+     */
+    getHmac(name, opts, cb_last = null) {
+        const { key, extra = false, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (!key)
+                throw new Error(`HMAC requires a key.`);
+
+            if (extra)
+                return noble_hmac.create(_constant.getNobleFunc(name, 'hash', nobleHmacMap), key);
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.hmac_hashes.includes(_name))
+                throw new Error(`Unsupported or missing hash: ${name}`);
+
+            return createHmac(_name, key, Utils.isEmptyObject(o, 'void'));
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- HASH: Standard Digests ---
+    /**
+     * Creates a standard Hash instance.
+     * @param {string} name - Algorithm name (e.g., 'sha256', 'blake2s256').
+     * @param {Object} [opts] - Configuration options.
+     * @param {boolean} [opts.extra=false] - Use Noble Hash implementation.
+     * @param {Object} [opts.o] - Internal options (e.g., dkLen for noble).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Hash|Object} Node.js Hash or Noble Hash instance.
+     */
+    getHash(name, opts, cb_last = null) {
+        const { extra = false, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (extra)
+                return _constant.getNobleFunc(name, 'hash', nobleHashMap)
+                    .create(Utils.isEmptyObject(o, 'void'));
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.hashes.includes(_name))
+                throw new Error(`Unsupported or missing hash: ${name}`);
+
+            return createHash(_name, Utils.isEmptyObject(o, 'void'));
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- XOF: Extendable-Output Functions (SHAKE, cSHAKE, TurboSHAKE, K12) ---
+    /**
+     * Creates an XOF instance for arbitrary length output.
+     * @param {string} name - Algorithm name (e.g., 'shake256', 'turboshake128').
+     * @param {Object} [opts] - Configuration options.
+     * @param {boolean} [opts.extra=false] - Use Noble XOF implementation.
+     * @param {Object} [opts.o] - Internal options (default outputLength: 32 for Node SHAKE).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Hash|Object} Node.js Hash or Noble XOF instance.
+     */
+    getXof(name, opts, cb_last = null) {
+        const { extra = false, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (extra)
+                return _constant.getNobleFunc(name, 'XOF', nobleXofMap)
+                    .create(Utils.isEmptyObject(o, 'void'));
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.xofs.includes(_name))
+                throw new Error(`Unsupported or missing XOF: ${name}`);
+
+            return createHash(_name, Utils.isEmptyObject(o) ? { outputLength: 32 } : o);
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- KMAC: Keyed XOF ---
+    /**
+     * Creates a KMAC instance (Keyed Keccak XOF).
+     * @param {string} name - KMAC variant ('kmac128', 'kmac256').
+     * @param {Object} opts - Configuration options.
+     * @param {Buffer|Uint8Array} opts.key - Customization key.
+     * @param {Object} [opts.o] - Noble KMAC options (e.g., customization string).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Object} Noble KMAC instance.
+     */
+    getKmac(name, opts, cb_last = null) {
+        const { key, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (!name?.toLowerCase().includes('kmac')) 
+                throw new Error(`Unsupported or missing KMAC: ${name}`);
+
+            if (!key)
+                throw new Error('KMAC requires a key.');
+
+            return _constant.getNobleFunc(name, 'KMAC', nobleKmacMap)
+                .create(key, Utils.isEmptyObject(o, 'void'));
+
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- KDF: Argon2 (Native Node.js) ---
+    /**
+     * Hashes a message using Argon2 via Node.js native crypto.
+     * @param {string} [name='argon2id'] - Argon2 variant ('argon2i', 'argon2d', 'argon2id').
+     * @param {Object} opts - Argon2 configuration.
+     * @param {string|Buffer|Uint8Array} opts.msg - The password/message to hash.
+     * @param {Buffer|Uint8Array} opts.salt - Salt (recommended 16+ bytes).
+     * @param {number} [opts.m=65536] - Memory cost in KiB (default 64MB).
+     * @param {number} [opts.p=4] - Parallelism factor (threads).
+     * @param {number} [opts.t=3] - Time cost (iterations).
+     * @param {number} [opts.len=32] - Desired output tag length in bytes.
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out both inputs (msg and salt).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Promise<Buffer>} The resulting Argon2 hash.
+     */
+    async argon2(name = 'argon2id', opts, cb_last = null) {
+        const { msg, salt, m, p, t, len, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        if (!msg || !salt) 
+            throw new Error("Argon2 requires both 'msg' (password) and 'salt'.");
+
+        return await Utils.wrapTry(() => _constant.argon2(name, {
+            message: msg,
+            nonce: salt,
+            memory: m ?? 65536,         // 64MB default
+            parallelism: p ?? 4,        // 4 threads default
+            passes: t ?? 3,             // 3 iterations default
+            tagLength: len ?? 32        // 256-bit output default
+        }), null, () => {
+            clear && Utils.zeroBuf(msg, salt);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    /**
+     * QR Code generation sub-module.
+     * Uses GIF for native Node.js support without Canvas dependencies.
+     * @type {Object}
+     * @readonly
+     */
+    qr: {
+
+        /**
+         * Encodes data into a QR code image (GIF).
+         * @param {string|Buffer} data - Content to encode.
+         * @param {Object} [opts] - Encoding options.
+         * @param {number} [opts.scale=4] - Factor to scale the pixel size (1 = 1px per module).
+         * @param {'low'|'medium'|'quartile'|'high'} [opts.ecc='medium'] - Error Correction Level (Higher = more resilient, but larger QR).
+         * @param {number} [opts.border=4] - Size of the white margin (quiet zone) around the QR.
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out the input data.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {Buffer} GIF image data as a Node.js Buffer.
+         */
+        toImage(data, opts, cb_last = null) {
+            const { scale = 4, ecc = 'medium', border = 4, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => {
+                // Returns a Uint8Array
+                const gifBytes = encodeQR(data, 'gif', { scale, ecc, border });
+
+                // Convert to Node Buffer so it's easier to handle
+                return Utils.buff(gifBytes, { clear: true });
+            }, null, () => {
+                clear && Utils.zeroBuf(data);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Encodes data into a QR code SVG string.
+         * @param {string|Buffer} data - Content to encode.
+         * @param {Object} [opts] - Encoding options.
+         * @param {'low'|'medium'|'quartile'|'high'} [opts.ecc='medium'] - Error Correction Level.
+         * @param {number} [opts.border=4] - Size of the quiet zone margin.
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out the input data.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} SVG XML string.
+         */
+        toSVG(data, opts, cb_last = null) {
+            const { ecc = 'medium', border = 4, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => encodeQR(data, 'svg', { ecc, border }), null, () => {
+                clear && Utils.zeroBuf(data);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Encodes data into a QR code formatted for the terminal using ANSI blocks.
+         * @param {string|Buffer} data - Content to encode.
+         * @param {Object} [opts] - Encoding options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} ANSI-escaped terminal string.
+         */
+        toTerminal(data, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => encodeQR(data, 'term'), null, cb_last, isThrow);
+        }
+    },
+
+
+    /**
+     * Individual Key Format (iKey)
+     * Custom Mnemonic logic using a 65,536 wordlist.
+     * Each word represents 16 bits (2 bytes) of data.
+     * @type {Object}
+     * @readonly
+     */
+    ikey: {
+
+        /**
+         * Decodes a mnemonic phrase back into raw bytes.
+         * @param {string} phrase - Space-separated words.
+         * @param {Object} [opts] - Options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback receiving (isErr).
+         * @returns {Buffer|boolean} The raw bytes or false on failure.
+         */
+        toBytes(phrase, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+            let isErr = false;
+            let parts, buf;
+
+            return Utils.wrapTrySync(() => {
+                parts = phrase.trim().split(/\s+/);
+                buf = Utils.alloc(parts.length * 2);
+
+                parts.forEach((word, i) => {
+                    const index = wordMap.get(word);
+
+                    if (__UNDEFINED__ === index) {
+                        isErr = true;
+                        throw new Error(`Invalid word: ${word}`);
+                    }
+                    buf.writeUInt16BE(index, i * 2);
+                });
+
+                return isErr ? false : buf;
+            }, null, () => {
+                isErr && Utils.zeroBuf(buf);
+                parts = buf = __UNDEFINED__;
+                cb_last?.(isErr);
+
+            }, isThrow);
+        },
+
+
+        /**
+         * Encodes raw bytes into a mnemonic phrase.
+         * @param {Buffer|Uint8Array} buffer - Data to encode (must be even length).
+         * @param {Object} [opts] - Options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} Space-separated mnemonic.
+         */
+        toWords(buffer, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+            let wordsArray, i;
+
+            return Utils.wrapTrySync(() => {
+                if (0 !== buffer.length % 2)
+                    throw new Error("Buffer must be even length");
+
+                wordsArray = [];
+
+                for (i = 0; i < buffer.length; i += 2) {
+                    wordsArray.push(words[buffer.readUInt16BE(i)]);
+                }
+
+                const result = wordsArray.join(' ');
+                return result;
+
+            }, null, () => {
+                wordsArray = i = __UNDEFINED__;
+                cb_last?.();
+
+            }, isThrow);
+        },
+
+
+        /**
+         * Generates a new iKey mnemonic with an appended checksum word.
+         * @param {number} [strength=256] - Entropy bits (256, 384, or 512).
+         * @param {Object} [opts] - Generation options.
+         * @param {boolean} [opts.isHardenRNG=false] - If true, uses THS-hardened RNG for seed generation.
+         * @param {Object} [opts.conf] - Configuration object passed directly to the THS-CSPRNG logic.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors during generation.
+         * @param {Function} [cb_last] - Finalization callback executed after internal buffers are cleared.
+         * @returns {Promise<string>} The space-separated mnemonic phrase including the checksum word.
+         */
+        async generate(strength = 256, opts, cb_last = null) {
+            const { isHardenRNG, conf, isThrow = true } = Utils.isEmptyObject(opts, false);
+            let seed, initialPhrase, checksumWord;
+
+            return await Utils.wrapTry(async () => {
+                if (![256, 384, 512].includes(strength))
+                    throw new Error("Invalid bit strength: Must be 256, 384, or 512");
+
+                seed = await Utils.hardenRNG(strength / 8, isHardenRNG, conf);
+                initialPhrase = Utils.ikey.toWords(seed);
+                checksumWord = _constant.getChecksumWord(initialPhrase);
+
+                const result = `${initialPhrase} ${checksumWord}`;
+                return result;
+            }, null, () => {
+                Utils.zeroBuf(seed);
+                seed = initialPhrase = checksumWord = __UNDEFINED__;
+                cb_last?.();
+
+            }, isThrow);
+        },
+
+
+        /**
+         * Validates an iKey mnemonic phrase against its appended checksum word.
+         * @param {string} phrase - The mnemonic phrase to validate.
+         * @param {Object} [opts] - Validation options.
+         * @param {boolean} [opts.harden=true] - If true, performs constant-time comparison via SHA3-512 hashing.
+         * @param {boolean} [opts.isThrow=false] - Whether to re-throw errors during validation.
+         * @param {Function} [cb_last] - Finalization callback receiving (isValid, expectedChecksum, providedChecksum).
+         * @returns {boolean} True if the phrase is well-formed, all words exist, and the checksum matches.
+         */
+        validate(phrase, opts, cb_last = null) {
+            const { harden = true, isThrow = false } = Utils.isEmptyObject(opts, false);
+            let parts, providedChecksum, expectedChecksum, basePhrase, isValid;
+
+            return Utils.wrapTrySync(() => {
+                parts = phrase.trim().split(/\s+/);
+                if (parts.length < 2) return false;
+
+                providedChecksum = parts.pop();
+                basePhrase = parts.join(' ');
+                expectedChecksum = _constant.getChecksumWord(basePhrase);
+
+                // Verify checksum first
+                isValid = Utils.compare(providedChecksum, expectedChecksum, { clear: true, harden });
+                if (!isValid) return false;
+
+                Utils.ikey.toBytes(basePhrase, { isThrow }, (isErr) => {
+                    isValid = !isErr;
+                });
+
+                return isValid;
+            }, null, () => {
+                cb_last?.(isValid, expectedChecksum, providedChecksum);
+                parts = providedChecksum = expectedChecksum = basePhrase = isValid = __UNDEFINED__;
+
+            }, isThrow);
+        }
+    },
+
+
+    /**
+     * Standard BIP39 Mnemonic implementation.
+     * Compatible with most hardware and software wallets.
+     * @type {Object}
+     * @readonly
+     */
+    bip39: {
+
+        /**
+         * Creates a fresh, random mnemonic in the chosen language.
+         * @param {number} [strength=128] - Entropy bits (128 = 12 words, 192 = 18 words, 256 = 24 words).
+         * @param {Object} [opts] - Generation options.
+         * @param {string} [opts.lang='english'] - The wordlist to use (e.g., 'english', 'spanish', 'french').
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} The space-separated mnemonic phrase.
+         */
+        generate(strength = 128, opts, cb_last = null) {
+            const { lang = 'english', isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.generateMnemonic(strength, null, _constant.getWordlist(lang)), null, cb_last, isThrow);
+        },
+
+
+        /**
+         * Converts raw entropy bytes to a mnemonic phrase.
+         * @param {Buffer|Uint8Array} entropy - The raw entropy bytes.
+         * @param {Object} [opts] - Conversion options.
+         * @param {string} [opts.lang='english'] - The wordlist to use.
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out input.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} The mnemonic phrase.
+         */
+        toMnemonic(entropy, opts, cb_last = null) {
+            const { lang = 'english', clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.entropyToMnemonic(entropy, _constant.getWordlist(lang)), null, () => {
+                clear && Utils.zeroBuf(entropy);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Converts a mnemonic phrase back to raw entropy bytes.
+         * @param {string} mnemonic - Space-separated words.
+         * @param {Object} [opts] - Conversion options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} Hexadecimal string of the entropy.
+         */
+        toEntropy(mnemonic, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.mnemonicToEntropy(mnemonic), null, cb_last, isThrow);
+        },
+
+
+        /**
+         * Converts a mnemonic into a 512-bit binary seed via PBKDF2.
+         * This seed is used to derive HD (BIP32/44) wallet keys.
+         * @param {string} mnemonic - The mnemonic phrase.
+         * @param {Object} [opts] - Seed derivation options.
+         * @param {string} [opts.password=""] - Optional salt/passphrase (extra layer of security).
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {Buffer} 64-byte (512-bit) binary seed.
+         */
+        toSeed(mnemonic, opts, cb_last = null) {
+            const { password = "", isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.mnemonicToSeedSync(mnemonic, password), null, cb_last, isThrow);
+        },
+
+
+        /**
+         * Validates if a mnemonic phrase is legitimate based on wordlist and checksum.
+         * @param {string} mnemonic - The phrase to validate.
+         * @param {Object} [opts] - Validation options.
+         * @param {string} [opts.lang='english'] - The wordlist to check against.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {boolean} True if the mnemonic is valid.
+         */
+        validate(mnemonic, opts, cb_last = null) {
+            const { lang = 'english', isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.validateMnemonic(mnemonic, _constant.getWordlist(lang)), null, cb_last, isThrow);
+        }
+    },
+
+
+    /**
+     * WIF (Wallet Import Format) encoding/decoding for handling private keys.
+     * @type {Object}
+     * @readonly
+     */
+    wif: {
+
+        /**
+         * Encodes a private key into a WIF string.
+         * @param {Buffer|Uint8Array} privateKey - 32-byte private key.
+         * @param {Object} [opts] - Encoding options.
+         * @param {boolean} [opts.compressed=true] - Whether the corresponding public key is compressed.
+         * @param {number} [opts.version=0x80] - Network version byte (0x80 for Bitcoin Mainnet, 0xEF for Testnet).
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out input private key.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} The Base58Check encoded WIF string.
+         */
+        encode(privateKey, opts, cb_last = null) {
+            const { compressed = true, version = 0x80, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => wifLib.encode({
+                version, privateKey, compressed
+            }), null, () => {
+                clear && Utils.zeroBuf(privateKey);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Decodes a WIF string into private key data.
+         * @param {string} string - The WIF encoded string (e.g., starting with '5', 'K', 'L', or 'c').
+         * @param {Object} [opts] - Decoding options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {{privateKey: Buffer, compressed: boolean, version: number}} Decoded object containing the key and metadata.
+         */
+        decode(string, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+            return Utils.wrapTrySync(() => {
+                const result = wifLib.decode(string);
+
+                return {
+                    // Convert to Buffer and clear original Uint8Array if necessary
+                    privateKey: Utils.buff(result.privateKey, { clear: true }),
+                    compressed: result.compressed,
+                    version: result.version
+                };
+            }, null, cb_last, isThrow);
+        }
+    }
+});
+
+export { Utils };
+export default Utils;

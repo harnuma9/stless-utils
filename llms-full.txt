@@ -1,0 +1,3251 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+# File Summary
+
+## Purpose
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+## File Format
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  a. A header with the file path (## File: path/to/file)
+  b. The full contents of the file in a code block
+
+## Usage Guidelines
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+## Notes
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: .git/**, .github/**, node_modules/**, dist/**, docs/**, temp/**, **/*.png, **/*.ico, **/*.svg, **/*.sha256, **/*.map, **/*.min.js, **/*.eot, **/*.ttf, **/*.woff*, src/65536-wordlist.js
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+# Directory Structure
+```
+src/
+  65536-wordlist.d.ts
+  fwrap.d.ts
+  fwrap.js
+  index.d.ts
+  index.js
+  noble.d.ts
+  noble.js
+test/
+  test_suite.js
+.gitignore
+.nomedia
+.npmignore
+index.html
+LICENSE
+package.json
+README.md
+update.sh
+verify.sh
+```
+
+# Files
+
+## File: src/65536-wordlist.d.ts
+````typescript
+/**
+ * @fileoverview 2^16 English wordlist. Derived from
+ * http://www-01.sil.org/linguistics/wordlists/english/.
+ * Originally compiled for the Yahoo End-to-End project.
+ * https://github.com/yahoo/end-to-end
+ */
+/**
+ * A fixed-size array of 65,536 English words used for mnemonic generation.
+ *
+ * @type {string[]}
+ */
+export const words: string[];
+/**
+ * A reverse-lookup Map for high-performance index retrieval.
+ * Maps each word string to its corresponding index in the {@link words} array.
+ *
+ * @type {Map<string, number>}
+ */
+export const wordMap: Map<string, number>;
+````
+
+## File: src/fwrap.d.ts
+````typescript
+export function fwrap(fn: Function, obj?: Object, key?: string | symbol): Function | void;
+export function fwrapObj(obj: Object | any[], isFreeze?: boolean): Object | any[];
+````
+
+## File: src/fwrap.js
+````javascript
+/**
+ * Strips the 'name' property from a function and optionally re-assigns it.
+ * Can return the function or mutate an object property in-place.
+ * 
+ * @param {Function} fn - The function to process.
+ * @param {Object} [obj=null] - Optional parent object for in-place mutation.
+ * @param {string|symbol} [key=null] - Optional property key for in-place mutation.
+ * @returns {Function|void} Returns the anonymized function if no obj/key are provided.
+ */
+export const fwrap = (fn, obj = null, key = null) => {
+    try {
+        const r = Object.defineProperty(fn, 'name', {
+            value: '',
+            configurable: true
+        });
+
+        // Standalone
+        if (null === obj && null === key)
+            return r;
+
+        // In-place
+        obj[key] = r;
+
+    } catch (e) { return fn; }
+};
+
+/**
+ * Recursively scans an object to anonymize all functions and optionally freeze it.
+ * Automatically respects read-only properties to prevent errors with third-party modules.
+ * 
+ * @param {Object|Array} obj - The target structure to process.
+ * @param {boolean} [isFreeze=true] - Whether to deeply freeze the object after processing.
+ * @returns {Object|Array} The processed (and potentially frozen) structure.
+ */
+export const fwrapObj = (obj, isFreeze = true) => {
+    // Return early if null or not an object/array
+    if (obj === null || typeof obj !== 'object')
+        return obj;
+
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const val = obj[key];
+
+            // Skip properties that cannot be modified
+            const desc = Object.getOwnPropertyDescriptor(obj, key);
+            if (desc && desc.writable === false) continue;
+
+            (typeof val === 'function')
+                // Delegate naming cleanup and re-assignment to fwrap
+                ? fwrap(val, obj, key)
+
+                // Recurse through nested objects/arrays
+                : fwrapObj(val, isFreeze);
+        }
+    }
+
+    // Finalize by locking down the structure if requested
+    return isFreeze ? Object.freeze(obj) : obj;
+};
+````
+
+## File: src/index.d.ts
+````typescript
+export default Utils;
+/**
+ * Main Utility Engine
+ * @type {Object}
+ * @readonly
+ */
+export const Utils: Object;
+````
+
+## File: src/index.js
+````javascript
+/**
+ * Copyright 2026 Aries Harbinger
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+// --- Imports ---
+const __UNDEFINED__ = void 0;
+
+// noble
+import {
+    // algorithms
+    aes, chacha, salsa,
+    noble_hmac, sha2, sha3, sha3_addons, blake3_mod, blake2, legacy,
+    ml_kem512, ml_kem768, ml_kem1024,
+    ml_dsa44, ml_dsa65, ml_dsa87,
+    slh_dsa, falcon512, falcon1024,
+
+    // array lists
+    nobleMlkemMap, nobleMldsaMap, nobleFalconMap,
+    nobleCipherMap, nobleHmacMap, nobleHashMap,
+    nobleXofMap, nobleKmacMap, nobleAlgMap
+} from '@stless/utils/noble';
+
+// obj wrapper
+import { fwrapObj } from '@stless/utils/fwrap';
+
+// wordlist
+import { words, wordMap } from '@stless/utils/65536';
+import * as bip39 from 'bip39';
+
+// csprng wrapper (ths)
+import * as ths_wrapper from 'ths-csprng';
+import * as ths_utils from 'ths-csprng/utils';
+
+// encoding formats
+import * as base from '@scure/base';
+import * as wifLib from 'wif';
+import encodeQR from 'qr';
+
+// nodejs built-in
+import { crc32 } from 'node:zlib';
+import { URL } from 'node:url';
+import { promisify } from 'node:util';
+import {
+    createHash, createHmac,
+    createCipheriv, createDecipheriv,
+    argon2 as _argon2, timingSafeEqual,
+    getCiphers, getHashes
+} from 'node:crypto';
+
+
+/**
+ * Internal Constants and Utility Helpers
+ * @type {Object}
+ * @readonly
+ * @private
+ */
+const _constant = fwrapObj({
+    /**
+     * @type {Function} Promisified Argon2id hashing function
+     * @private
+     */
+    argon2: promisify(_argon2),
+
+    /**
+     * @type {string[]} List of ciphers supported by the current Node.js runtime
+     * @private
+     */
+    getCiphers: getCiphers(),
+
+    /**
+     * @type {string[]} List of hashes supported by the current Node.js runtime
+     * @private
+     */
+    getHashes:  getHashes(),
+
+
+    /** 
+     * RegEx patterns used to filter out weak or redundant algorithms 
+     * @type {Object}
+     * @readonly
+     * @private
+     */
+    unnecessary: {
+        cipher: /128|192|\-ecb|\-ccm|\-cbc|id\-|des\-|aria|camellia|sm4|des3|wrap|^[a-z0-9]+256$/i,
+        hmac:   /rsa|ssl3|id-rsassa|sm3|shake|kmac|blake|keccak|sha3\-/i,
+        hash:   /rsa|ssl3|id-rsassa|sm3|shake|kmac/i
+    },
+
+
+    /** 
+     * BIP39 Multi-language wordlists
+     * @type {Object}
+     * @readonly
+     * @private
+     */
+    bip39_lang: {
+        english: bip39.wordlists.english,
+        french: bip39.wordlists.french,
+        spanish: bip39.wordlists.spanish,
+        italian: bip39.wordlists.italian,
+        portuguese: bip39.wordlists.portuguese,
+        czech: bip39.wordlists.czech
+    },
+
+
+    /** 
+     * Collection of Scure-base encoding/decoding codecs 
+     * @type {Object}
+     * @readonly
+     * @private
+     */
+    codec: {
+        // Standard bases
+        'base16': base.base16,
+        'base32': base.base32,
+        'base58': base.base58,
+        'base64': base.base64,
+
+        // Flavors
+        'base58xmr': base.base58xmr,
+        'base58xrp': base.base58xrp,
+        'base64url': base.base64url,
+        'base32hex': base.base32hex,
+        'base32crockford': base.base32crockford,
+        'base58check': base.createBase58check(sha2.sha256),
+
+        // Bitcoin/Lightning address format
+        'bech32':  base.bech32,
+        'bech32m': base.bech32m
+    },
+
+
+    /**
+     * Resolves an algorithm from a noble map using normalized naming.
+     * @param {string} name - Algorithm name
+     * @param {string} nameErr - Category name for error reporting
+     * @param {Record<string, Function>} nobleMap - The map to search within
+     * @throws {Error} If algorithm is unsupported
+     * @returns {Function}
+     * @private
+     */
+    getNobleFunc(name, nameErr, nobleMap) {
+        const _fn = nobleMap[name?.toLowerCase().replace(/-/g, '_')];
+        if (!_fn) throw new Error(`Unsupported or missing ${nameErr}: ${name}`);
+        return _fn;
+    },
+
+
+    /**
+     * Retrieves a BIP39 wordlist for a specific language.
+     * @param {string} [lang='english'] - ISO language name
+     * @throws {Error} If language is unsupported
+     * @returns {string[]}
+     * @private
+     */
+    getWordlist(lang = 'english') {
+        const list = _constant.bip39_lang;
+        if (list[lang]) return list[lang];
+
+        throw new Error(`Unsupported language type: ${lang}`);
+    },
+
+
+    /**
+     * Generates a checksum word from a phrase using CRC32.
+     * Folds a 32-bit hash into a 16-bit index for the 65536 wordlist.
+     * @param {string|Buffer} phrase - The input to checksum
+     * @returns {string} A single word from the 2^16 wordlist
+     * @private
+     */
+    getChecksumWord(phrase) {
+        const val = crc32(phrase);
+
+        // "Fold" the 32-bit hash into a 16-bit index
+        // This ensures the word comes from the entire 65536 list
+        const wordIndex = (val >>> 16) ^ (val & 0xFFFF);
+        return words[wordIndex >>> 0];
+    }
+});
+
+
+/**
+ * Main Utility Engine
+ * @type {Object}
+ * @readonly
+ */
+const Utils = fwrapObj({
+
+    /**
+     * Direct access to the THS (Temporal-Hardening Solution) wrapper.
+     * Provides core entropy and random fill functions.
+     * @returns {Object} The default export of the 'ths-csprng' module.
+     */
+    get ths_wrapper() {
+        return ths_wrapper.default;
+    },
+
+
+    /**
+     * Direct access to THS auxiliary utilities.
+     * @returns {Object} The default export of the 'ths-csprng/utils' module.
+     */
+    get ths_utils() {
+        return ths_utils.default;
+    },
+
+
+    /**
+     * Comprehensive registry of supported cryptographic algorithm names.
+     * Categorized by PQC (Post-Quantum), Extra (Noble/Cross-platform), and Crypto (Native Node.js).
+     * Filtered to exclude insecure or unnecessary primitives for enhanced security.
+     * @returns {Object} A wrapped, read-only map of algorithm identifiers.
+     */
+    get names() {
+        const list = {
+            'pqc': {
+                mlkem: Object.keys(nobleMlkemMap),
+                mldsa: Object.keys(nobleMldsaMap),
+                slhdsa: Object.keys(slh_dsa).filter(name => !name.includes('PARAMS')),
+                falcon: Object.keys(nobleFalconMap)
+            },
+            'extra': {
+                nobles: Object.keys(nobleAlgMap),
+                ciphers: Object.keys(nobleCipherMap),
+                hashes: Object.keys(nobleHashMap),
+                hmac_hashes: Object.keys(nobleHmacMap),
+                xofs: Object.keys(nobleXofMap),
+                keyed_xofs: Object.keys(nobleKmacMap)
+            },
+            'crypto': {
+                ciphers: _constant.getCiphers.filter(_ => !_constant.unnecessary.cipher.test(_)),
+                hashes: _constant.getHashes.filter(_ => !_constant.unnecessary.hash.test(_)),
+                hmac_hashes: _constant.getHashes.filter(_ => !_constant.unnecessary.hmac.test(_)),
+                xofs: _constant.getHashes.filter(_ => /shake/i.test(_))
+            }
+        };
+
+        list.default = list.crypto;
+        return fwrapObj(list);
+    },
+
+
+    /* --- Type Assertion Primitiaries (Dynamic) --- */
+
+    /**
+     * @method isString
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches string.
+     */
+    /**
+     * @method isNumber
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches number.
+     */
+    /**
+     * @method isBoolean
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches boolean.
+     */
+    /**
+     * @method isObject
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches object and is not null.
+     */
+    /**
+     * @method isUndefined
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches undefined.
+     */
+    /**
+     * @method isFunction
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches function.
+     */
+    /**
+     * @method isSymbol
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches symbol.
+     */
+    /**
+     * @method isBigInt
+     * @memberof Utils
+     * @param {*} input - Value to evaluate.
+     * @returns {boolean} True if type matches bigint.
+     */
+    ...['String', 'Number', 'Boolean', 'Object', 'Undefined', 'Function', 'Symbol', 'BigInt'].reduce((acc, name) => {
+        acc[`is${name}`] = input => (input !== null && name.toLowerCase() === typeof input);
+        return acc;
+    }, {}),
+
+
+    /* --- Scure-Base Codec Wrappers (Dynamic) --- */
+
+    /**
+     * @method fromBase16
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase16
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase32
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase32
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase58
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase58
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase64
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase64
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    /**
+     * @method fromBase64Url
+     * @memberof Utils
+     * @param {string} input - Encoded data string.
+     * @returns {Buffer} Sanitized memory buffer payload.
+     */
+    /**
+     * @method toBase64Url
+     * @memberof Utils
+     * @param {Uint8Array|Buffer} input - Binary source data buffer.
+     * @param {boolean} [clear=false] - Zero-wipe the input buffer after encoding.
+     * @returns {string} String encoded structure.
+     */
+    ...['Base16', 'Base32', 'Base58', 'Base64', 'Base64Url'].reduce((acc, name) => {
+        acc[`from${name}`] = input => Utils.buff(Utils.codec(name.toLowerCase()).decode(input), { clear: true });
+        acc[`to${name}`] = (input, clear = false) => {
+            const result = Utils.codec(name.toLowerCase()).encode(input);
+            return clear && Utils.zeroBuf(input), result;
+        };
+        return acc;
+    }, {}),
+
+
+    /**
+     * Evaluates truthiness with optional length checks.
+     * @param {*} input - Value to evaluate.
+     * @param {boolean} [checkLength=false] - If true, evaluates if object/array holds length >= 1.
+     * @returns {boolean}
+     */
+    bool(input, checkLength = false) {
+        return checkLength ? (!!input && input.length >= 1) : !!input;
+    },
+
+
+    /**
+     * Securely clones an input buffer section into standard runtime allocations.
+     * @param {Buffer|Uint8Array} a - Target buffer instance to duplicate.
+     * @param {number} len - Total explicit depth size to extract.
+     * @param {boolean} [clear=false] - When true, triggers absolute volatile erasure on original buffer.
+     * @returns {Buffer} Cloned clean buffer workspace.
+     */
+    copyBuf(a, len, clear = false) {
+        const b = Utils.alloc(len);
+        a.copy(b, 0, 0, len);
+        clear && Utils.zeroBuf(a);
+        return b;
+    },
+
+
+    /**
+     * Generates random bytes with optional time-hardening.
+     * @param {number} len - Byte length.
+     * @param {boolean} isHardenRNG - If true, applies THS hardening; else standard CSPRNG.
+     * @param {Object} [conf] - Configuration for THS logic.
+     * @returns {Promise<Buffer>} A hardened or standard buffer.
+     */
+    async hardenRNG(len, isHardenRNG, conf) {
+        if (!isHardenRNG) {
+            // Use a standard CSPRNG source
+            const a = Utils.ths_wrapper.fillRandom(new Uint8Array(len));
+            return Utils.buff(a, { clear: true });
+        }
+
+        // Use Temporal-Hardening Solution wrapper on CSPRNG
+        return await Utils.ths_wrapper.random(len, Utils.isEmptyObject(conf, 'void'));
+    },
+
+
+    /**
+     * Normalizes an input into a URL object.
+     * @param {string|URL} u - The URI string or object.
+     * @returns {URL}
+     */
+    parseURI(u) {
+        return Utils.isString(u)
+            ? new URL(u)
+            : u;
+    },
+
+
+    /**
+     * Converts value to string with optional Unicode normalization.
+     * @param {*} a - Input value.
+     * @param {string|null} [type='NFC'] - Normalization form (NFC, NFD, etc).
+     * @returns {string}
+     */
+    toStr(a, type = 'NFC') {
+        const b = String(a);
+        if (!type) return b;
+        return b.normalize(type);
+    },
+
+
+    /**
+     * Checks if an object is empty.
+     * @param {*} val - Target object.
+     * @param {boolean|string} [isBoolean=true] - If 'void', returns undefined on empty; 
+     * if false, returns empty object on empty.
+     * @returns {boolean|Object|undefined}
+     */
+    isEmptyObject(val, isBoolean = true) {
+        const isObj = Utils.isTrueObject(val);
+        const isEmpty = isObj && Object.keys(val).length <= 0;
+
+        if ('void' === isBoolean)
+            return (!isObj || isEmpty) ? __UNDEFINED__ : val;
+
+        if (isBoolean === false)
+            return (!isObj || isEmpty) ? {} : val;
+
+        return isObj && isEmpty;
+    },
+
+
+    /**
+     * Strictly checks if a value is a plain JavaScript object.
+     * @param {*} val 
+     * @returns {boolean}
+     */
+    isTrueObject(val) {
+        return Object.prototype.toString.call(val) === '[object Object]';
+    },
+
+
+    /**
+     * Asynchronous try-catch wrapper for clean flow control.
+     * @param {Function} logic - Async function to execute.
+     * @param {Function} [cb_err] - Error callback.
+     * @param {Function} [cb_last] - Finally callback.
+     * @param {boolean} [isThrow=true] - Whether to re-throw the error.
+     * @returns {Promise<*>}
+     */
+    async wrapTry(logic, cb_err, cb_last, isThrow = true) {
+        try       { return await logic(); }
+        catch (e) { cb_err?.(e); if (isThrow) throw e; }
+        finally   { cb_last?.(); }
+    },
+
+
+    /**
+     * Synchronous try-catch wrapper for clean flow control.
+     * @param {Function} logic - Function to execute.
+     * @param {Function} [cb_err] - Error callback.
+     * @param {Function} [cb_last] - Finally callback.
+     * @param {boolean} [isThrow=true] - Whether to re-throw the error.
+     * @returns {*}
+     */
+    wrapTrySync(logic, cb_err, cb_last, isThrow = true) {
+        try       { return logic(); }
+        catch (e) { cb_err?.(e); if (isThrow) throw e; }
+        finally   { cb_last?.(); }
+    },
+
+
+    /**
+     * Overwrites buffers/arrays with zeros for memory security.
+     * @param {...(Buffer|Uint8Array|ArrayBuffer)} args - Buffers to wipe.
+     */
+    zeroBuf(...args) {
+        for (const buf of args) {
+            buf?.fill?.(0);
+            (buf instanceof ArrayBuffer) &&
+                new Uint8Array(buf).fill(0);
+        }
+    },
+
+
+    /**
+     * Constant-time comparison of two buffers or strings.
+     * Prevents timing attacks by ensuring comparison time is independent of input values.
+     * @param {string|Buffer|Uint8Array} a - First input.
+     * @param {string|Buffer|Uint8Array} b - Second input.
+     * @param {Object} [opts] - Comparison options.
+     * @param {string} [opts.encoding1='utf-8'] - Encoding used if 'a' input is string.
+     * @param {string} [opts.encoding2='utf-8'] - Encoding used if 'b' input is string.
+     * @param {boolean} [opts.harden=false] - If true, compares SHA3-512 hashes of the inputs instead of raw data.
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out both inputs after comparison.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {boolean} True if inputs (or their hashes) are identical.
+     */
+    compare(a, b, opts, cb_last = null) {
+        const { encoding1 = 'utf-8', encoding2 = 'utf-8', harden = false, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+        let h1, h2, bufA, bufB;
+
+        return Utils.wrapTrySync(() => {
+            bufA = Utils.buff(a, { encoding: encoding1 });
+            bufB = Utils.buff(b, { encoding: encoding2 });
+
+            if (!harden) {
+                return (bufA.length !== bufB.length)
+                    ? !timingSafeEqual(bufA, bufA)   // always false
+                    :  timingSafeEqual(bufA, bufB);
+            }
+
+            h1 = Utils.getHash('sha3-512').update(bufA).digest();
+            h2 = Utils.getHash('sha3-512').update(bufB).digest();
+
+            const result = timingSafeEqual(h1, h2);
+            return result;
+
+        }, null, () => {
+            Utils.zeroBuf(bufA, bufB, h1, h2);
+            h1 = h2 = bufA = bufB = __UNDEFINED__;
+            clear && Utils.zeroBuf(a, b);
+            cb_last?.();
+
+        }, isThrow);
+    },
+
+
+    /**
+     * Unified buffer converter. Handles strings, binary, and custom encodings.
+     * @param {*} a - Input to convert.
+     * @param {Object} [opts] - Options (encoding, clear, isThrow).
+     * @param {string} [opts.encoding='utf-8'] - Encoding used if inputs are strings.
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out input.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Buffer}
+     */
+    buff(a, opts, cb_last = null) {
+        const { encoding = 'utf-8', clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+        let view, result;
+
+        return Utils.wrapTrySync(() => {
+            // Handle null
+            if (a == null) return Utils.alloc(1);
+
+            // Handle Strings
+            if (Utils.isString(a)) {
+                if (!encoding) {
+                    result = Buffer.from(a);
+
+                } else {
+                    result = Buffer.isEncoding(encoding) 
+                        ? Buffer.from(a, encoding) 
+                        : Buffer.from(Utils.codec(encoding).decode(a));
+                }
+
+                return result;
+            }
+
+            // Handle Binary (Buffer, Uint8Array, ArrayBuffer, etc.)
+            if (Buffer.isBuffer(a))
+                return Buffer.from(a);
+
+            if (a instanceof Uint8Array || a instanceof ArrayBuffer || a.buffer instanceof ArrayBuffer) {
+                view = a instanceof ArrayBuffer ? new Uint8Array(a) : a;
+                result = Buffer.from(Uint8Array.from(view));
+                return result;
+            }
+
+            // Fallback for Arrays or other iterable types
+            return Buffer.from(a);
+
+        }, null, () => {
+            clear && Utils.zeroBuf(a);
+            view = __UNDEFINED__;
+            cb_last?.();
+
+        }, isThrow);
+    },
+
+
+    /**
+     * Allocates a new buffer of specified length.
+     * @param {number} len - Buffer size.
+     * @returns {Buffer}
+     */
+    alloc(len) {
+        return Buffer
+            .allocUnsafe(len)  // uninitialized system memory
+            .fill(0);          // immediate wipe with zeros
+    },
+
+
+    /**
+     * Performs a bitwise XOR between two buffers.
+     * @param {Uint8Array|Buffer} a - First buffer.
+     * @param {Uint8Array|Buffer} b - Second buffer.
+     * @param {boolean} [inPlaceXor=false] - If true, modifies buffer 'a' directly.
+     * @returns {Uint8Array|Buffer}
+     */
+    xorBytes(a, b, inPlaceXor = false) {
+        let c = inPlaceXor ? a : Utils.buff(a);
+        let i = 0;
+
+        while (i < b.length) {
+            c[i] ^= b[i];
+            i++;
+        }
+
+        return i = __UNDEFINED__, c;
+    },
+
+
+    /**
+     * Shuffles or Unshuffles an array using a provided mask as entropy.
+     * @param {Array} array - Target array.
+     * @param {Uint8Array|number[]} mask - Entropy source for shuffling.
+     * @param {boolean} [reverse=false] - If true, reverses the shuffle.
+     * @returns {Array} The shuffled/unshuffled result.
+     */
+    shuffleArr(array, mask, reverse = false) {
+        const result = [...array];
+        let n = result.length;
+        let i, j;
+
+        // Mapping bytes to indices
+        if (!reverse) {
+            for (i = n - 1; i > 0; i--) {
+                j = mask[mask.length - 1 - i] % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+
+        } else {
+            for (i = 1; i < n; i++) {
+                j = mask[mask.length - 1 - i] % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+        }
+
+        return i = j = n = __UNDEFINED__, result;
+    },
+
+
+    /**
+     * Formats a space-separated string into a numbered list.
+     * @param {string} w - Input text.
+     * @returns {string} Numbered multiline string.
+     */
+    splitFormat(w) {
+        return w
+            .split(' ')
+            .map((word, i) => `${i+1}. ${word}`)
+            .join('\n');
+    },
+
+
+    /**
+     * Retrieves an encoding/decoding codec by name with a transparent proxy interface.
+     * Supports base16, base32, base58, base64, and variants like bech32/bech32m.
+     * @param {string} name - Codec name (e.g., 'base58', 'bech32m').
+     * @param {Object} [opts] - Options including error handling.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{
+     *   encode: function(...*): string,
+     *   decode: function(...*): *,
+     *   encodeFromBytes?: function(...*): string,
+     *   decodeToBytes?: function(...*): Uint8Array,
+     *   decodeUnsafe?: function(...*): *,
+     *   fromWords?: function(...*): Uint8Array,
+     *   fromWordsUnsafe?: function(...*): *,
+     *   toWords?: function(...*): number[]
+     * }}
+     */
+    codec(name, opts, cb_last = null) {
+        const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const coder = _constant.codec[name?.toLowerCase().replace(/-/g, '')];
+            if (!coder) throw new Error(`Unsupported codec: ${name}`);
+
+            // Build out a cleanly wrapped proxy interface using flexible rest params
+            const target = {};
+            const methods = [
+                'encode', 'decode', 
+                'encodeFromBytes', 'decodeToBytes', 'decodeUnsafe', 
+                'fromWords', 'fromWordsUnsafe', 'toWords'
+            ];
+
+            for (const method of methods) {
+                if (Utils.isFunction(coder[method])) {
+                    target[method] = (...args) => coder[method](...args);
+                }
+            }
+
+            return fwrapObj(target);
+        }, null, cb_last, isThrow);
+    },
+
+
+    /**
+     * Direct access to specific Noble algorithm modules.
+     * @param {string} name - The algorithm name.
+     * @param {Object} [opts] - Options including error handling.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw the error.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Object} The algorithm module/function.
+     */
+    noble(name, opts, cb_last = null) {
+        const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => _constant.getNobleFunc(name, 'noble', nobleAlgMap), null, cb_last, isThrow);
+    },
+
+    // --- ML-KEM (FIPS 203 / Kyber) ---
+    /**
+     * Generates a keypair for ML-KEM (Post-Quantum Key Encapsulation).
+     * @param {string} name - ML-KEM variant ('ml-kem-512', 'ml-kem-768', or 'ml-kem-1024').
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the first 64 bytes).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    mlkem(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const alg = _constant.getNobleFunc(name, 'ML-KEM variant', nobleMlkemMap);
+            return alg.keygen(seed.subarray(0, 64));
+        }, null, () => {
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- ML-DSA (FIPS 204 / Dilithium) ---
+    /**
+     * Generates a keypair for ML-DSA (Post-Quantum Digital Signature).
+     * @param {string} name - ML-DSA variant ('ml-dsa-44', 'ml-dsa-65', or 'ml-dsa-87').
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the first 32 bytes).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    mldsa(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const alg = _constant.getNobleFunc(name, 'ML-DSA variant', nobleMldsaMap);
+            return alg.keygen(seed.subarray(0, 32));
+        }, null, () => {
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- SLH-DSA (FIPS 205 / SPHINCS+) ---
+    /**
+     * Generates a keypair for SLH-DSA (Stateless Hash-Based Signatures).
+     * @param {string} name - SLH-DSA variant from noble.
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the
+     * first 48, 72, or 96 bytes depending on security level).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    slhdsa(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+        let size, alg;
+
+        return Utils.wrapTrySync(() => {
+            alg = _constant.getNobleFunc(name, 'SLH-DSA variant', slh_dsa);
+            size = 48;
+
+            if (name.includes('192')) size = 72;
+            if (name.includes('256')) size = 96;
+
+            return alg.keygen(seed.subarray(0, size));
+        }, null, () => {
+            size = alg = __UNDEFINED__;
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- Falcon (NIST Round 3) ---
+    /**
+     * Generates a keypair for Falcon (Fast Lattice-based Compact Signatures over NTRU).
+     * @param {string} name - Falcon variant ('falcon512' or 'falcon1024').
+     * @param {Object} opts - Keygen configuration.
+     * @param {Uint8Array} opts.seed - High-entropy seed (Will use the first 48 bytes).
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out the input seed.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {{publicKey: Uint8Array, secretKey: Uint8Array}}
+     */
+    falcon(name, opts, cb_last = null) {
+        const { seed, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            const alg = _constant.getNobleFunc(name, 'Falcon variant', nobleFalconMap);
+            return alg.keygen(seed.subarray(0, 48));
+        }, null, () => {
+            clear && Utils.zeroBuf(seed);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    // --- CIPHERS: AES, ChaCha20, Salsa20 ---
+    /**
+     * Creates a cipher or decipher instance.
+     * @param {string} name - Algorithm name (e.g., 'aes-256-gcm', 'xchacha20-poly1305').
+     * @param {Object} opts - Configuration options.
+     * @param {Buffer|Uint8Array} opts.key - Secret key (length depends on algorithm).
+     * @param {Buffer|Uint8Array} opts.iv - Initialization Vector or Nonce.
+     * @param {boolean} opts.e - Encrypt flag (true: encrypt, false: decrypt).
+     * @param {boolean} [opts.extra=false] - Use Noble implementations (required for XChaCha20/XSalsa20).
+     * @param {Object} [opts.o] - Additional options passed to createCipheriv (e.g., { authTagLength: 16 }).
+     * @param {boolean} [opts.buffer=true] - Return buffer instead, in noble implementations,
+     * allowing the use of `Buffer.concat([cipher.update(data), cipher.final()])`
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Cipher|import('node:crypto').Decipher|Object} Node.js Cipher/Decipher or Noble Cipher instance.
+     */
+    getCipher(name, opts, cb_last = null) {
+        const { key, iv, extra = false, e, o, buffer = true, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (!name) throw new Error("Cipher name is required.");
+            if (!iv) throw new Error(`Initialization Vector (iv) is required for ${name}`);
+
+            if (extra) {
+                const cipherInit = _constant.getNobleFunc(name, 'cipher', nobleCipherMap);
+
+                return fwrapObj({
+                    'update': (data) => {
+                        let output;
+                        try {
+                            const instance = cipherInit(key, iv);
+                            if (!Utils.isFunction(instance)) {
+                                output = e
+                                    ? instance.encrypt(data)
+                                    : instance.decrypt(data);
+                            }
+                            else { output = instance(data); }
+                        }
+
+                        catch (err) {
+                            if (err instanceof TypeError && err.message.includes('data')) {
+                                output = cipherInit(key, iv, data);
+                            }
+                            else { throw err; }
+                        }
+
+                        return buffer
+                            ? Utils.buff(output, { clear: true })
+                            : output;
+                    },
+
+                    'final': () => Utils.alloc(0)
+                });
+            }
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.ciphers.includes(_name))
+                throw new Error(`Unsupported or missing cipher: ${name}`);
+
+            if ('boolean' !== typeof e)
+                throw new Error("Unsupported: 'e' must be a boolean  (true: encrypt, false: decrypt)");
+
+            const method = e ? createCipheriv : createDecipheriv;
+            return method(_name, key, iv, Utils.isEmptyObject(o, 'void'));
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- MAC: HMAC (Fixed-length hashes) ---
+    /**
+     * Creates an HMAC instance.
+     * @param {string} name - Hash algorithm name (e.g., 'sha256', 'md5').
+     * @param {Object} opts - Configuration options.
+     * @param {Buffer|Uint8Array} opts.key - HMAC secret key.
+     * @param {boolean} [opts.extra=false] - Use Noble HMAC implementation.
+     * @param {Object} [opts.o] - Internal options for Node.js createHmac.
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Hmac|Object} Node.js Hmac or Noble HMAC instance.
+     */
+    getHmac(name, opts, cb_last = null) {
+        const { key, extra = false, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (!key)
+                throw new Error(`HMAC requires a key.`);
+
+            if (extra)
+                return noble_hmac.create(_constant.getNobleFunc(name, 'hash', nobleHmacMap), key);
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.hmac_hashes.includes(_name))
+                throw new Error(`Unsupported or missing hash: ${name}`);
+
+            return createHmac(_name, key, Utils.isEmptyObject(o, 'void'));
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- HASH: Standard Digests ---
+    /**
+     * Creates a standard Hash instance.
+     * @param {string} name - Algorithm name (e.g., 'sha256', 'blake2s256').
+     * @param {Object} [opts] - Configuration options.
+     * @param {boolean} [opts.extra=false] - Use Noble Hash implementation.
+     * @param {Object} [opts.o] - Internal options (e.g., dkLen for noble).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Hash|Object} Node.js Hash or Noble Hash instance.
+     */
+    getHash(name, opts, cb_last = null) {
+        const { extra = false, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (extra)
+                return _constant.getNobleFunc(name, 'hash', nobleHashMap)
+                    .create(Utils.isEmptyObject(o, 'void'));
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.hashes.includes(_name))
+                throw new Error(`Unsupported or missing hash: ${name}`);
+
+            return createHash(_name, Utils.isEmptyObject(o, 'void'));
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- XOF: Extendable-Output Functions (SHAKE, cSHAKE, TurboSHAKE, K12) ---
+    /**
+     * Creates an XOF instance for arbitrary length output.
+     * @param {string} name - Algorithm name (e.g., 'shake256', 'turboshake128').
+     * @param {Object} [opts] - Configuration options.
+     * @param {boolean} [opts.extra=false] - Use Noble XOF implementation.
+     * @param {Object} [opts.o] - Internal options (default outputLength: 32 for Node SHAKE).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {import('node:crypto').Hash|Object} Node.js Hash or Noble XOF instance.
+     */
+    getXof(name, opts, cb_last = null) {
+        const { extra = false, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (extra)
+                return _constant.getNobleFunc(name, 'XOF', nobleXofMap)
+                    .create(Utils.isEmptyObject(o, 'void'));
+
+            const _name = name?.toLowerCase().replace(/_/g, '-');
+
+            if (!Utils.names.crypto.xofs.includes(_name))
+                throw new Error(`Unsupported or missing XOF: ${name}`);
+
+            return createHash(_name, Utils.isEmptyObject(o) ? { outputLength: 32 } : o);
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- KMAC: Keyed XOF ---
+    /**
+     * Creates a KMAC instance (Keyed Keccak XOF).
+     * @param {string} name - KMAC variant ('kmac128', 'kmac256').
+     * @param {Object} opts - Configuration options.
+     * @param {Buffer|Uint8Array} opts.key - Customization key.
+     * @param {Object} [opts.o] - Noble KMAC options (e.g., customization string).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Object} Noble KMAC instance.
+     */
+    getKmac(name, opts, cb_last = null) {
+        const { key, o, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        return Utils.wrapTrySync(() => {
+            if (!name?.toLowerCase().includes('kmac')) 
+                throw new Error(`Unsupported or missing KMAC: ${name}`);
+
+            if (!key)
+                throw new Error('KMAC requires a key.');
+
+            return _constant.getNobleFunc(name, 'KMAC', nobleKmacMap)
+                .create(key, Utils.isEmptyObject(o, 'void'));
+
+        }, null, cb_last, isThrow);
+    },
+
+
+    // --- KDF: Argon2 (Native Node.js) ---
+    /**
+     * Hashes a message using Argon2 via Node.js native crypto.
+     * @param {string} [name='argon2id'] - Argon2 variant ('argon2i', 'argon2d', 'argon2id').
+     * @param {Object} opts - Argon2 configuration.
+     * @param {string|Buffer|Uint8Array} opts.msg - The password/message to hash.
+     * @param {Buffer|Uint8Array} opts.salt - Salt (recommended 16+ bytes).
+     * @param {number} [opts.m=65536] - Memory cost in KiB (default 64MB).
+     * @param {number} [opts.p=4] - Parallelism factor (threads).
+     * @param {number} [opts.t=3] - Time cost (iterations).
+     * @param {number} [opts.len=32] - Desired output tag length in bytes.
+     * @param {boolean} [opts.clear=false] - If true, securely zeros out both inputs (msg and salt).
+     * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+     * @param {Function} [cb_last] - Finalization callback.
+     * @returns {Promise<Buffer>} The resulting Argon2 hash.
+     */
+    async argon2(name = 'argon2id', opts, cb_last = null) {
+        const { msg, salt, m, p, t, len, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+        if (!msg || !salt) 
+            throw new Error("Argon2 requires both 'msg' (password) and 'salt'.");
+
+        return await Utils.wrapTry(() => _constant.argon2(name, {
+            message: msg,
+            nonce: salt,
+            memory: m ?? 65536,         // 64MB default
+            parallelism: p ?? 4,        // 4 threads default
+            passes: t ?? 3,             // 3 iterations default
+            tagLength: len ?? 32        // 256-bit output default
+        }), null, () => {
+            clear && Utils.zeroBuf(msg, salt);
+            cb_last?.();
+        }, isThrow);
+    },
+
+
+    /**
+     * QR Code generation sub-module.
+     * Uses GIF for native Node.js support without Canvas dependencies.
+     * @type {Object}
+     * @readonly
+     */
+    qr: {
+
+        /**
+         * Encodes data into a QR code image (GIF).
+         * @param {string|Buffer} data - Content to encode.
+         * @param {Object} [opts] - Encoding options.
+         * @param {number} [opts.scale=4] - Factor to scale the pixel size (1 = 1px per module).
+         * @param {'low'|'medium'|'quartile'|'high'} [opts.ecc='medium'] - Error Correction Level (Higher = more resilient, but larger QR).
+         * @param {number} [opts.border=4] - Size of the white margin (quiet zone) around the QR.
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out the input data.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {Buffer} GIF image data as a Node.js Buffer.
+         */
+        toImage(data, opts, cb_last = null) {
+            const { scale = 4, ecc = 'medium', border = 4, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => {
+                // Returns a Uint8Array
+                const gifBytes = encodeQR(data, 'gif', { scale, ecc, border });
+
+                // Convert to Node Buffer so it's easier to handle
+                return Utils.buff(gifBytes, { clear: true });
+            }, null, () => {
+                clear && Utils.zeroBuf(data);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Encodes data into a QR code SVG string.
+         * @param {string|Buffer} data - Content to encode.
+         * @param {Object} [opts] - Encoding options.
+         * @param {'low'|'medium'|'quartile'|'high'} [opts.ecc='medium'] - Error Correction Level.
+         * @param {number} [opts.border=4] - Size of the quiet zone margin.
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out the input data.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} SVG XML string.
+         */
+        toSVG(data, opts, cb_last = null) {
+            const { ecc = 'medium', border = 4, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => encodeQR(data, 'svg', { ecc, border }), null, () => {
+                clear && Utils.zeroBuf(data);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Encodes data into a QR code formatted for the terminal using ANSI blocks.
+         * @param {string|Buffer} data - Content to encode.
+         * @param {Object} [opts] - Encoding options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} ANSI-escaped terminal string.
+         */
+        toTerminal(data, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => encodeQR(data, 'term'), null, cb_last, isThrow);
+        }
+    },
+
+
+    /**
+     * Individual Key Format (iKey)
+     * Custom Mnemonic logic using a 65,536 wordlist.
+     * Each word represents 16 bits (2 bytes) of data.
+     * @type {Object}
+     * @readonly
+     */
+    ikey: {
+
+        /**
+         * Decodes a mnemonic phrase back into raw bytes.
+         * @param {string} phrase - Space-separated words.
+         * @param {Object} [opts] - Options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback receiving (isErr).
+         * @returns {Buffer|boolean} The raw bytes or false on failure.
+         */
+        toBytes(phrase, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+            let isErr = false;
+            let parts, buf;
+
+            return Utils.wrapTrySync(() => {
+                parts = phrase.trim().split(/\s+/);
+                buf = Utils.alloc(parts.length * 2);
+
+                parts.forEach((word, i) => {
+                    const index = wordMap.get(word);
+
+                    if (__UNDEFINED__ === index) {
+                        isErr = true;
+                        throw new Error(`Invalid word: ${word}`);
+                    }
+                    buf.writeUInt16BE(index, i * 2);
+                });
+
+                return isErr ? false : buf;
+            }, null, () => {
+                isErr && Utils.zeroBuf(buf);
+                parts = buf = __UNDEFINED__;
+                cb_last?.(isErr);
+
+            }, isThrow);
+        },
+
+
+        /**
+         * Encodes raw bytes into a mnemonic phrase.
+         * @param {Buffer|Uint8Array} buffer - Data to encode (must be even length).
+         * @param {Object} [opts] - Options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} Space-separated mnemonic.
+         */
+        toWords(buffer, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+            let wordsArray, i;
+
+            return Utils.wrapTrySync(() => {
+                if (0 !== buffer.length % 2)
+                    throw new Error("Buffer must be even length");
+
+                wordsArray = [];
+
+                for (i = 0; i < buffer.length; i += 2) {
+                    wordsArray.push(words[buffer.readUInt16BE(i)]);
+                }
+
+                const result = wordsArray.join(' ');
+                return result;
+
+            }, null, () => {
+                wordsArray = i = __UNDEFINED__;
+                cb_last?.();
+
+            }, isThrow);
+        },
+
+
+        /**
+         * Generates a new iKey mnemonic with an appended checksum word.
+         * @param {number} [strength=256] - Entropy bits (256, 384, or 512).
+         * @param {Object} [opts] - Generation options.
+         * @param {boolean} [opts.isHardenRNG=false] - If true, uses THS-hardened RNG for seed generation.
+         * @param {Object} [opts.conf] - Configuration object passed directly to the THS-CSPRNG logic.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors during generation.
+         * @param {Function} [cb_last] - Finalization callback executed after internal buffers are cleared.
+         * @returns {Promise<string>} The space-separated mnemonic phrase including the checksum word.
+         */
+        async generate(strength = 256, opts, cb_last = null) {
+            const { isHardenRNG, conf, isThrow = true } = Utils.isEmptyObject(opts, false);
+            let seed, initialPhrase, checksumWord;
+
+            return await Utils.wrapTry(async () => {
+                if (![256, 384, 512].includes(strength))
+                    throw new Error("Invalid bit strength: Must be 256, 384, or 512");
+
+                seed = await Utils.hardenRNG(strength / 8, isHardenRNG, conf);
+                initialPhrase = Utils.ikey.toWords(seed);
+                checksumWord = _constant.getChecksumWord(initialPhrase);
+
+                const result = `${initialPhrase} ${checksumWord}`;
+                return result;
+            }, null, () => {
+                Utils.zeroBuf(seed);
+                seed = initialPhrase = checksumWord = __UNDEFINED__;
+                cb_last?.();
+
+            }, isThrow);
+        },
+
+
+        /**
+         * Validates an iKey mnemonic phrase against its appended checksum word.
+         * @param {string} phrase - The mnemonic phrase to validate.
+         * @param {Object} [opts] - Validation options.
+         * @param {boolean} [opts.harden=true] - If true, performs constant-time comparison via SHA3-512 hashing.
+         * @param {boolean} [opts.isThrow=false] - Whether to re-throw errors during validation.
+         * @param {Function} [cb_last] - Finalization callback receiving (isValid, expectedChecksum, providedChecksum).
+         * @returns {boolean} True if the phrase is well-formed, all words exist, and the checksum matches.
+         */
+        validate(phrase, opts, cb_last = null) {
+            const { harden = true, isThrow = false } = Utils.isEmptyObject(opts, false);
+            let parts, providedChecksum, expectedChecksum, basePhrase, isValid;
+
+            return Utils.wrapTrySync(() => {
+                parts = phrase.trim().split(/\s+/);
+                if (parts.length < 2) return false;
+
+                providedChecksum = parts.pop();
+                basePhrase = parts.join(' ');
+                expectedChecksum = _constant.getChecksumWord(basePhrase);
+
+                // Verify checksum first
+                isValid = Utils.compare(providedChecksum, expectedChecksum, { clear: true, harden });
+                if (!isValid) return false;
+
+                Utils.ikey.toBytes(basePhrase, { isThrow }, (isErr) => {
+                    isValid = !isErr;
+                });
+
+                return isValid;
+            }, null, () => {
+                cb_last?.(isValid, expectedChecksum, providedChecksum);
+                parts = providedChecksum = expectedChecksum = basePhrase = isValid = __UNDEFINED__;
+
+            }, isThrow);
+        }
+    },
+
+
+    /**
+     * Standard BIP39 Mnemonic implementation.
+     * Compatible with most hardware and software wallets.
+     * @type {Object}
+     * @readonly
+     */
+    bip39: {
+
+        /**
+         * Creates a fresh, random mnemonic in the chosen language.
+         * @param {number} [strength=128] - Entropy bits (128 = 12 words, 192 = 18 words, 256 = 24 words).
+         * @param {Object} [opts] - Generation options.
+         * @param {string} [opts.lang='english'] - The wordlist to use (e.g., 'english', 'spanish', 'french').
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} The space-separated mnemonic phrase.
+         */
+        generate(strength = 128, opts, cb_last = null) {
+            const { lang = 'english', isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.generateMnemonic(strength, null, _constant.getWordlist(lang)), null, cb_last, isThrow);
+        },
+
+
+        /**
+         * Converts raw entropy bytes to a mnemonic phrase.
+         * @param {Buffer|Uint8Array} entropy - The raw entropy bytes.
+         * @param {Object} [opts] - Conversion options.
+         * @param {string} [opts.lang='english'] - The wordlist to use.
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out input.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} The mnemonic phrase.
+         */
+        toMnemonic(entropy, opts, cb_last = null) {
+            const { lang = 'english', clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.entropyToMnemonic(entropy, _constant.getWordlist(lang)), null, () => {
+                clear && Utils.zeroBuf(entropy);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Converts a mnemonic phrase back to raw entropy bytes.
+         * @param {string} mnemonic - Space-separated words.
+         * @param {Object} [opts] - Conversion options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} Hexadecimal string of the entropy.
+         */
+        toEntropy(mnemonic, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.mnemonicToEntropy(mnemonic), null, cb_last, isThrow);
+        },
+
+
+        /**
+         * Converts a mnemonic into a 512-bit binary seed via PBKDF2.
+         * This seed is used to derive HD (BIP32/44) wallet keys.
+         * @param {string} mnemonic - The mnemonic phrase.
+         * @param {Object} [opts] - Seed derivation options.
+         * @param {string} [opts.password=""] - Optional salt/passphrase (extra layer of security).
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {Buffer} 64-byte (512-bit) binary seed.
+         */
+        toSeed(mnemonic, opts, cb_last = null) {
+            const { password = "", isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.mnemonicToSeedSync(mnemonic, password), null, cb_last, isThrow);
+        },
+
+
+        /**
+         * Validates if a mnemonic phrase is legitimate based on wordlist and checksum.
+         * @param {string} mnemonic - The phrase to validate.
+         * @param {Object} [opts] - Validation options.
+         * @param {string} [opts.lang='english'] - The wordlist to check against.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {boolean} True if the mnemonic is valid.
+         */
+        validate(mnemonic, opts, cb_last = null) {
+            const { lang = 'english', isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => bip39.validateMnemonic(mnemonic, _constant.getWordlist(lang)), null, cb_last, isThrow);
+        }
+    },
+
+
+    /**
+     * WIF (Wallet Import Format) encoding/decoding for handling private keys.
+     * @type {Object}
+     * @readonly
+     */
+    wif: {
+
+        /**
+         * Encodes a private key into a WIF string.
+         * @param {Buffer|Uint8Array} privateKey - 32-byte private key.
+         * @param {Object} [opts] - Encoding options.
+         * @param {boolean} [opts.compressed=true] - Whether the corresponding public key is compressed.
+         * @param {number} [opts.version=0x80] - Network version byte (0x80 for Bitcoin Mainnet, 0xEF for Testnet).
+         * @param {boolean} [opts.clear=false] - If true, securely zeros out input private key.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {string} The Base58Check encoded WIF string.
+         */
+        encode(privateKey, opts, cb_last = null) {
+            const { compressed = true, version = 0x80, clear = false, isThrow = true } = Utils.isEmptyObject(opts, false);
+
+            return Utils.wrapTrySync(() => wifLib.encode({
+                version, privateKey, compressed
+            }), null, () => {
+                clear && Utils.zeroBuf(privateKey);
+                cb_last?.();
+            }, isThrow);
+        },
+
+
+        /**
+         * Decodes a WIF string into private key data.
+         * @param {string} string - The WIF encoded string (e.g., starting with '5', 'K', 'L', or 'c').
+         * @param {Object} [opts] - Decoding options.
+         * @param {boolean} [opts.isThrow=true] - Whether to re-throw errors.
+         * @param {Function} [cb_last] - Finalization callback.
+         * @returns {{privateKey: Buffer, compressed: boolean, version: number}} Decoded object containing the key and metadata.
+         */
+        decode(string, opts, cb_last = null) {
+            const { isThrow = true } = Utils.isEmptyObject(opts, false);
+            return Utils.wrapTrySync(() => {
+                const result = wifLib.decode(string);
+
+                return {
+                    // Convert to Buffer and clear original Uint8Array if necessary
+                    privateKey: Utils.buff(result.privateKey, { clear: true }),
+                    compressed: result.compressed,
+                    version: result.version
+                };
+            }, null, cb_last, isThrow);
+        }
+    }
+});
+
+export { Utils };
+export default Utils;
+````
+
+## File: src/noble.d.ts
+````typescript
+/** @type {typeof _aes} */
+export const aes: typeof _aes;
+/** @type {typeof _chacha} */
+export const chacha: typeof _chacha;
+/** @type {typeof _salsa} */
+export const salsa: typeof _salsa;
+/** @type {typeof _noble_hmac} */
+export const noble_hmac: typeof _noble_hmac;
+/** @type {typeof _sha2} */
+export const sha2: typeof _sha2;
+/** @type {typeof _sha3} */
+export const sha3: typeof _sha3;
+/** @type {typeof _sha3_addons} */
+export const sha3_addons: typeof _sha3_addons;
+/** @type {typeof _blake3_mod} */
+export const blake3_mod: typeof _blake3_mod;
+/** @type {typeof _blake2} */
+export const blake2: typeof _blake2;
+/** @type {typeof _legacy} */
+export const legacy: typeof _legacy;
+/** @type {typeof _ml_kem512} */
+export const ml_kem512: typeof _ml_kem512;
+/** @type {typeof _ml_kem768} */
+export const ml_kem768: typeof _ml_kem768;
+/** @type {typeof _ml_kem1024} */
+export const ml_kem1024: typeof _ml_kem1024;
+/** @type {typeof _ml_dsa44} */
+export const ml_dsa44: typeof _ml_dsa44;
+/** @type {typeof _ml_dsa65} */
+export const ml_dsa65: typeof _ml_dsa65;
+/** @type {typeof _ml_dsa87} */
+export const ml_dsa87: typeof _ml_dsa87;
+/** @type {typeof _slh_dsa} */
+export const slh_dsa: typeof _slh_dsa;
+/** @type {typeof _falcon512} */
+export const falcon512: typeof _falcon512;
+/** @type {typeof _falcon1024} */
+export const falcon1024: typeof _falcon1024;
+/**
+ * Map of Module-Lattice-Based Key-Encapsulation Mechanisms (ML-KEM)
+ * FIPS 203 standardized (formerly Kyber)
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleMlkemMap: Readonly<Record<string, any>>;
+/**
+ * Map of Module-Lattice-Based Digital Signature Algorithms (ML-DSA)
+ * FIPS 204 standardized (formerly Dilithium)
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleMldsaMap: Readonly<Record<string, any>>;
+/**
+ * Map of Falcon Digital Signature Algorithms
+ * Fast Lattice-based Compact Signatures over NTRU
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleFalconMap: Readonly<Record<string, any>>;
+/**
+ * Map of Symmetric Ciphers (AES, ChaCha, Salsa)
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleCipherMap: Readonly<Record<string, any>>;
+/**
+ * Map of HMAC implementations using various Hash functions
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleHmacMap: Readonly<Record<string, any>>;
+/**
+ * Map of Cryptographic Hash Functions
+ * Includes SHA-2, SHA-3, Keccak, Blake2/3 and Legacy support.
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleHashMap: Readonly<Record<string, any>>;
+/**
+ * Map of Extendable-Output Functions (XOF)
+ * Includes SHAKE, cSHAKE, TurboSHAKE and KangarooTwelve.
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleXofMap: Readonly<Record<string, any>>;
+/**
+ * Map of KMAC (Keccak Message Authentication Code) implementations
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleKmacMap: Readonly<Record<string, any>>;
+/**
+ * Master Algorithm Map
+ * Consolidates all available cryptographic primitives.
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleAlgMap: Readonly<Record<string, any>>;
+import * as _aes from '@noble/ciphers/aes.js';
+import * as _chacha from '@noble/ciphers/chacha.js';
+import * as _salsa from '@noble/ciphers/salsa.js';
+import { hmac as _noble_hmac } from '@noble/hashes/hmac.js';
+import * as _sha2 from '@noble/hashes/sha2.js';
+import * as _sha3 from '@noble/hashes/sha3.js';
+import * as _sha3_addons from '@noble/hashes/sha3-addons.js';
+import * as _blake3_mod from '@noble/hashes/blake3.js';
+import * as _blake2 from '@noble/hashes/blake2.js';
+import * as _legacy from '@noble/hashes/legacy.js';
+import { ml_kem512 as _ml_kem512 } from '@noble/post-quantum/ml-kem.js';
+import { ml_kem768 as _ml_kem768 } from '@noble/post-quantum/ml-kem.js';
+import { ml_kem1024 as _ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
+import { ml_dsa44 as _ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
+import { ml_dsa65 as _ml_dsa65 } from '@noble/post-quantum/ml-dsa.js';
+import { ml_dsa87 as _ml_dsa87 } from '@noble/post-quantum/ml-dsa.js';
+import * as _slh_dsa from '@noble/post-quantum/slh-dsa.js';
+import { falcon512 as _falcon512 } from '@noble/post-quantum/falcon.js';
+import { falcon1024 as _falcon1024 } from '@noble/post-quantum/falcon.js';
+````
+
+## File: src/noble.js
+````javascript
+/**
+ * @fileoverview Cryptographic Utility Wrapper
+ * Provides mapped access to Noble Ciphers, Hashes, and Post-Quantum Algorithms.
+ */
+
+// ciphers
+import * as _aes from '@noble/ciphers/aes.js';
+import * as _chacha from '@noble/ciphers/chacha.js';
+import * as _salsa from '@noble/ciphers/salsa.js';
+
+// hmac, hash, or xofs
+import { hmac as _noble_hmac } from '@noble/hashes/hmac.js';
+import * as _sha2 from '@noble/hashes/sha2.js';
+import * as _sha3 from '@noble/hashes/sha3.js';
+import * as _sha3_addons from '@noble/hashes/sha3-addons.js';
+import * as _blake3_mod from '@noble/hashes/blake3.js';
+import * as _blake2 from '@noble/hashes/blake2.js';
+import * as _legacy from '@noble/hashes/legacy.js';
+
+// pqc libs
+import { ml_kem512 as _ml_kem512, ml_kem768 as _ml_kem768, ml_kem1024 as _ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
+import { ml_dsa44 as _ml_dsa44, ml_dsa65 as _ml_dsa65, ml_dsa87 as _ml_dsa87 } from '@noble/post-quantum/ml-dsa.js';
+import * as _slh_dsa from '@noble/post-quantum/slh-dsa.js';
+import { falcon512 as _falcon512, falcon1024 as _falcon1024 } from '@noble/post-quantum/falcon.js';
+
+
+// --- Exports ---
+
+/** @type {typeof _aes} */
+export const aes = _aes;
+/** @type {typeof _chacha} */
+export const chacha = _chacha;
+/** @type {typeof _salsa} */
+export const salsa = _salsa;
+
+/** @type {typeof _noble_hmac} */
+export const noble_hmac = _noble_hmac;
+/** @type {typeof _sha2} */
+export const sha2 = _sha2;
+/** @type {typeof _sha3} */
+export const sha3 = _sha3;
+/** @type {typeof _sha3_addons} */
+export const sha3_addons = _sha3_addons;
+/** @type {typeof _blake3_mod} */
+export const blake3_mod = _blake3_mod;
+/** @type {typeof _blake2} */
+export const blake2 = _blake2;
+/** @type {typeof _legacy} */
+export const legacy = _legacy;
+
+/** @type {typeof _ml_kem512} */
+export const ml_kem512 = _ml_kem512;
+/** @type {typeof _ml_kem768} */
+export const ml_kem768 = _ml_kem768;
+/** @type {typeof _ml_kem1024} */
+export const ml_kem1024 = _ml_kem1024;
+
+/** @type {typeof _ml_dsa44} */
+export const ml_dsa44 = _ml_dsa44;
+/** @type {typeof _ml_dsa65} */
+export const ml_dsa65 = _ml_dsa65;
+/** @type {typeof _ml_dsa87} */
+export const ml_dsa87 = _ml_dsa87;
+
+/** @type {typeof _slh_dsa} */
+export const slh_dsa = _slh_dsa;
+
+/** @type {typeof _falcon512} */
+export const falcon512 = _falcon512;
+/** @type {typeof _falcon1024} */
+export const falcon1024 = _falcon1024;
+
+/**
+ * Map of Module-Lattice-Based Key-Encapsulation Mechanisms (ML-KEM)
+ * FIPS 203 standardized (formerly Kyber)
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleMlkemMap = Object.freeze({
+    // ML-KEM
+    'ml_kem512': ml_kem512,
+    'ml_kem_512': ml_kem512,
+    'ml_kem768': ml_kem768,
+    'ml_kem_768': ml_kem768,
+    'ml_kem1024': ml_kem1024,
+    'ml_kem_1024': ml_kem1024
+});
+
+/**
+ * Map of Module-Lattice-Based Digital Signature Algorithms (ML-DSA)
+ * FIPS 204 standardized (formerly Dilithium)
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleMldsaMap = Object.freeze({
+    // ML-DSA
+    'ml_dsa44': ml_dsa44,
+    'ml_dsa_44': ml_dsa44,
+    'ml_dsa65': ml_dsa65,
+    'ml_dsa_65': ml_dsa65,
+    'ml_dsa87': ml_dsa87,
+    'ml_dsa_87': ml_dsa87
+});
+
+/**
+ * Map of Falcon Digital Signature Algorithms
+ * Fast Lattice-based Compact Signatures over NTRU
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleFalconMap = Object.freeze({
+    // Falcon
+    'falcon512':  falcon512,
+    'falcon1024': falcon1024
+});
+
+/**
+ * Map of Symmetric Ciphers (AES, ChaCha, Salsa)
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleCipherMap = Object.freeze({
+    // AES
+    'aes_256_gcm': aes.gcm,
+    'aes_256_ctr': aes.ctr,
+    'aes_256_cfb': aes.cfb,
+    'aes_256_siv': aes.gcmsiv,
+
+    // ChaCha20
+    'chacha20_poly1305': chacha.chacha20poly1305,
+    'xchacha20_poly1305': chacha.xchacha20poly1305,
+    'chacha20': chacha.chacha20,
+    'xchacha20': chacha.xchacha20,
+
+    // Salsa20
+    'xsalsa20_poly1305': salsa.xsalsa20poly1305,
+    'salsa20': salsa.salsa20,
+    'xsalsa20': salsa.xsalsa20
+});
+
+/**
+ * Map of HMAC implementations using various Hash functions
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleHmacMap = Object.freeze({
+    // SHA-2
+    'sha224': sha2.sha224,
+    'sha256': sha2.sha256,
+    'sha384': sha2.sha384,
+    'sha512': sha2.sha512,
+
+    // SHA-2 (512)
+    'sha512_224': sha2.sha512_224,
+    'sha512_256': sha2.sha512_256,
+
+    // Legacy
+    'ripemd160': legacy.ripemd160,
+    'sha1': legacy.sha1,
+    'md5': legacy.md5
+});
+
+/**
+ * Map of Cryptographic Hash Functions
+ * Includes SHA-2, SHA-3, Keccak, Blake2/3 and Legacy support.
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleHashMap = Object.freeze({
+    // SHA-2
+    'sha224': sha2.sha224,
+    'sha256': sha2.sha256,
+    'sha384': sha2.sha384,
+    'sha512': sha2.sha512,
+
+    // SHA-2 (512)
+    'sha512_224': sha2.sha512_224,
+    'sha512_256': sha2.sha512_256,
+
+    // SHA3
+    'sha3_224': sha3.sha3_224,
+    'sha3_256': sha3.sha3_256,
+    'sha3_384': sha3.sha3_384,
+    'sha3_512': sha3.sha3_512,
+
+    // Keccak
+    'keccak_224': sha3.keccak_224,
+    'keccak_256': sha3.keccak_256,
+    'keccak_384': sha3.keccak_384,
+    'keccak_512': sha3.keccak_512,
+
+    // Blake
+    'blake2s256': blake2.blake2s,
+    'blake2b512': blake2.blake2b,
+    'blake3': blake3_mod.blake3,
+
+    // Legacy
+    'ripemd160': legacy.ripemd160,
+    'sha1': legacy.sha1,
+    'md5': legacy.md5
+});
+
+/**
+ * Map of Extendable-Output Functions (XOF)
+ * Includes SHAKE, cSHAKE, TurboSHAKE and KangarooTwelve.
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleXofMap = Object.freeze({
+    // SHAKE
+    'shake128': sha3.shake128,
+    'shake256': sha3.shake256,
+
+    // cSHAKE
+    'cshake128': sha3_addons.cshake128,
+    'cshake256': sha3_addons.cshake256,
+
+    // TurboSHAKE
+    'turboshake128': sha3_addons.turboshake128,
+    'turboshake256': sha3_addons.turboshake256,
+
+    // KangarooTwelve
+    'k12': sha3_addons.kt128,
+    'kt128': sha3_addons.kt128,
+    'kt256': sha3_addons.kt256
+});
+
+/**
+ * Map of KMAC (Keccak Message Authentication Code) implementations
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleKmacMap = Object.freeze({
+    // KMAC
+    'kmac128': sha3_addons.kmac128,
+    'kmac256': sha3_addons.kmac256,
+});
+
+/**
+ * Master Algorithm Map
+ * Consolidates all available cryptographic primitives.
+ * @type {Readonly<Record<string, any>>}
+ */
+export const nobleAlgMap = Object.freeze({
+    // Ciphers
+    'aes': aes,
+    'chacha': chacha,
+    'salsa': salsa,
+
+    // Hashes, HMAC, & XOFs
+    'noble_hmac': noble_hmac,
+    'sha2': sha2,
+    'sha3': sha3,
+    'sha3_addons': sha3_addons,
+    'blake3_mod': blake3_mod,
+    'blake2': blake2,
+    'legacy': legacy,
+
+    // PQC: ML-KEM
+    'ml_kem512': ml_kem512,
+    'ml_kem_512': ml_kem512,
+    'ml_kem768': ml_kem768,
+    'ml_kem_768': ml_kem768,
+    'ml_kem1024': ml_kem1024,
+    'ml_kem_1024': ml_kem1024,
+
+    // PQC: ML-DSA
+    'ml_dsa44': ml_dsa44,
+    'ml_dsa_44': ml_dsa44,
+    'ml_dsa65': ml_dsa65,
+    'ml_dsa_65': ml_dsa65,
+    'ml_dsa87': ml_dsa87,
+    'ml_dsa_87': ml_dsa87,
+
+    // PQC: Signature / Other
+    'slh_dsa': slh_dsa,
+    'falcon512': falcon512,
+    'falcon1024': falcon1024
+});
+````
+
+## File: test/test_suite.js
+````javascript
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import Utils from '@stless/utils';
+
+/**
+ * @stless/utils - Unified Test Suite
+ * Covers: Core, Codecs, Crypto, PQC, and Mnemonics
+ */
+
+test('Core Utilities & Memory Safety', async (t) => {
+  await t.test('hardenRNG & alloc', async () => {
+    const buf = await Utils.hardenRNG(32);
+    assert.strictEqual(buf.length, 32);
+
+    const allocated = Utils.alloc(16);
+    assert.strictEqual(allocated.length, 16);
+    assert.strictEqual(allocated[0], 0, 'Allocated buffer must be zero-filled');
+  });
+
+  await t.test('Constant-Time Comparison', () => {
+    const a = Utils.buff('secret');
+    const b = Utils.buff('secret');
+    const c = Utils.buff('wrong!');
+
+    assert.strictEqual(Utils.compare(a, b), true);
+    assert.strictEqual(Utils.compare(a, c), false);
+    assert.strictEqual(Utils.compare('test', 'test', { harden: true }), true);
+  });
+
+  await t.test('Memory Sanitization (zeroBuf)', () => {
+    const buf = Utils.buff('sensitive data');
+    Utils.zeroBuf(buf);
+    assert.ok(buf.every(byte => byte === 0), 'Buffer should be wiped to zeros');
+
+    const ui8 = new Uint8Array([1, 2, 3]);
+    Utils.zeroBuf(ui8);
+    assert.strictEqual(ui8[0], 0);
+  });
+
+  await t.test('bool utility flags', () => {
+    // Standard truthiness evaluation
+    assert.strictEqual(Utils.bool(true), true);
+    assert.strictEqual(Utils.bool('data'), true);
+    assert.strictEqual(Utils.bool(''), false);
+    assert.strictEqual(Utils.bool(0), false);
+    assert.strictEqual(Utils.bool(null), false);
+
+    // Length-constrained truthiness validation
+    assert.strictEqual(Utils.bool('A', true), true);
+    assert.strictEqual(Utils.bool([1], true), true);
+    assert.strictEqual(Utils.bool('', true), false);
+    assert.strictEqual(Utils.bool([], true), false);
+  });
+
+  await t.test('copyBuf clone protection & sanitization', () => {
+    const original = Utils.buff('immutable payload');
+    const clone = Utils.copyBuf(original, original.length, false);
+
+    assert.deepEqual(clone, original, 'Cloned buffer data alignment match');
+    assert.notEqual(clone, original, 'References must point to distinct memory addresses');
+
+    // Destructive isolation test copy
+    const target = Utils.buff('volatile target');
+    const cleanClone = Utils.copyBuf(target, target.length, true);
+    
+    assert.strictEqual(cleanClone.toString(), 'volatile target', 'Extracted value valid');
+    assert.ok(target.every(b => b === 0), 'Source allocation cleared immediately after extraction');
+  });
+});
+
+test('Dynamic Type Assertion Primitives', async (t) => {
+  await t.test('Primitive type checking matrix validation', () => {
+    // True positive evaluations
+    assert.strictEqual(Utils.isString('hello world'), true);
+    assert.strictEqual(Utils.isNumber(42), true);
+    assert.strictEqual(Utils.isBoolean(false), true);
+    assert.strictEqual(Utils.isObject({ key: 'val' }), true);
+    assert.strictEqual(Utils.isUndefined(undefined), true);
+    assert.strictEqual(Utils.isFunction(() => {}), true);
+    assert.strictEqual(Utils.isSymbol(Symbol('id')), true);
+    assert.strictEqual(Utils.isBigInt(100n), true);
+
+    // Null safety exclusions (typeof null === 'object')
+    assert.strictEqual(Utils.isObject(null), false, 'Null must not resolve as an object');
+
+    // Type crossed-boundary negatives
+    assert.strictEqual(Utils.isString(123), false);
+    assert.strictEqual(Utils.isNumber('123'), false);
+    assert.strictEqual(Utils.isBoolean(null), false);
+  });
+});
+
+test('Encoding & Codecs', async (t) => {
+  await t.test('Base16 & Base58 Roundtrip', () => {
+    const hex = '48656C6C6F'; // "Hello"
+    const buf = Utils.buff(hex, { encoding: 'base16' });
+    assert.strictEqual(buf.toString(), 'Hello');
+
+    const b58 = Utils.codec('base58').encode(buf);
+    const decoded = Utils.codec('base58').decode(b58);
+    assert.deepEqual(Buffer.from(decoded), buf);
+  });
+
+  await t.test('Dynamic Scure-Base Codec Modules Roundtrip', () => {
+    const data = Utils.buff('CryptographicPayload2026');
+
+    // Base16 Check
+    const b16Str = Utils.toBase16(data);
+    assert.strictEqual(Utils.fromBase16(b16Str).toString(), 'CryptographicPayload2026');
+
+    // Base32 Check
+    const b32Str = Utils.toBase32(data);
+    assert.strictEqual(Utils.fromBase32(b32Str).toString(), 'CryptographicPayload2026');
+
+    // Base58 Check
+    const b58Str = Utils.toBase58(data);
+    assert.strictEqual(Utils.fromBase58(b58Str).toString(), 'CryptographicPayload2026');
+
+    // Base64 Check
+    const b64Str = Utils.toBase64(data);
+    assert.strictEqual(Utils.fromBase64(b64Str).toString(), 'CryptographicPayload2026');
+
+    // Base64Url Check
+    const b64UrlStr = Utils.toBase64Url(data);
+    assert.strictEqual(Utils.fromBase64Url(b64UrlStr).toString(), 'CryptographicPayload2026');
+  });
+
+  await t.test('Dynamic Codec clear memory options flag verification', () => {
+    const bufferA = Utils.buff('sensitive secret data');
+    const encoded = Utils.toBase64(bufferA, true);
+
+    assert.ok(encoded.length > 0);
+    assert.ok(bufferA.every(b => b === 0), 'Underlying raw source input must be zero-wiped out post encoding operation');
+  });
+
+  await t.test('Bitcoin WIF (Wallet Import Format)', async () => {
+    const privKey = await Utils.hardenRNG(32);
+    const encoded = Utils.wif.encode(privKey, { compressed: true });
+
+    assert.match(encoded, /^[LK]/, 'Compressed Mainnet WIF starts with L or K');
+
+    const decoded = Utils.wif.decode(encoded);
+    assert.deepEqual(decoded.privateKey, Buffer.from(privKey));
+    assert.strictEqual(decoded.version, 0x80);
+  });
+});
+
+test('Post-Quantum Cryptography (PQC)', async (t) => {
+  // Helper for checking determinism across NIST algorithms
+  const checkPQC = (name, fn, seedSize, pubLen) => {
+    const seed = Buffer.alloc(seedSize, 0x42);
+    const keys1 = fn(name, { seed });
+    const keys2 = fn(name, { seed });
+
+    assert.deepEqual(keys1.publicKey, keys2.publicKey, `${name} should be deterministic`);
+    assert.strictEqual(keys1.publicKey.length, pubLen, `${name} public key length mismatch`);
+  };
+
+  await t.test('ML-KEM (FIPS 203)', () => {
+    checkPQC('ml-kem-768', Utils.mlkem, 64, 1184);
+  });
+
+  await t.test('ML-DSA (FIPS 204)', () => {
+    checkPQC('ml-dsa-65', Utils.mldsa, 32, 1952);
+  });
+
+  await t.test('SLH-DSA (FIPS 205)', () => {
+    checkPQC('slh-dsa-sha2-128f', Utils.slhdsa, 64, 32);
+  });
+
+  await t.test('Falcon (NIST Round 3)', async () => {
+    const seed = await Utils.hardenRNG(48);
+    const keys = Utils.falcon('falcon512', { seed });
+    assert.ok(keys.publicKey instanceof Uint8Array);
+  });
+});
+
+test('Standard Cryptography & KDF', async (t) => {
+  await t.test('AES-256-CTR & ChaCha20 Encryption', async () => {
+    const key = await Utils.hardenRNG(32);
+    const iv = await Utils.hardenRNG(16);
+    const iv2 = await Utils.hardenRNG(12);
+    const msg = Utils.buff('top secret');
+  
+    const cipher = Utils.getCipher('aes-256-ctr', { key, iv, extra: true, e: true });
+    const encrypted = cipher.update(msg);
+  
+    const decipher = Utils.getCipher('aes-256-ctr', { key, iv, extra: true, e: false });
+    const decrypted = decipher.update(encrypted);
+  
+    assert.strictEqual(Buffer.from(decrypted).toString(), 'top secret');
+  
+    const cipher2 = Utils.getCipher('chacha20', { key, iv: iv2, extra: true, e: true });
+    const encrypted2 = cipher2.update(msg);
+  
+    const decipher2 = Utils.getCipher('chacha20', { key, iv: iv2, extra: true, e: false });
+    const decrypted2 = decipher2.update(encrypted2);
+    assert.strictEqual(Buffer.from(decrypted2).toString(), 'top secret');
+  });
+
+  await t.test('XSalsa20 & XChaCha20 Encryption', async () => {
+    const key = await Utils.hardenRNG(32);
+    const iv = await Utils.hardenRNG(24);
+    const iv2 = await Utils.hardenRNG(24);
+    const msg = Utils.buff('top secret');
+  
+    const cipher = Utils.getCipher('xsalsa20', { key, iv, extra: true, e: true });
+    const encrypted = cipher.update(msg);
+  
+    const decipher = Utils.getCipher('xsalsa20', { key, iv, extra: true, e: false });
+    const decrypted = decipher.update(encrypted);
+  
+    assert.strictEqual(Buffer.from(decrypted).toString(), 'top secret');
+  
+    const cipher2 = Utils.getCipher('xchacha20', { key, iv: iv2, extra: true, e: true });
+    const encrypted2 = cipher2.update(msg);
+  
+    const decipher2 = Utils.getCipher('xchacha20', { key, iv: iv2, extra: true, e: false });
+    const decrypted2 = decipher2.update(encrypted2);
+    assert.strictEqual(Buffer.from(decrypted2).toString(), 'top secret');
+  });
+  
+  await t.test('AES-256-GCM & XChaCha20-Poly1305 Encryption', async () => {
+    const key = await Utils.hardenRNG(32);
+    const iv = await Utils.hardenRNG(12);
+    const iv2 = await Utils.hardenRNG(24);
+    const msg = Utils.buff('top secret');
+
+    const cipher = Utils.getCipher('aes-256-gcm', { key, iv, extra: true, e: true });
+    const encrypted = cipher.update(msg);
+
+    const decipher = Utils.getCipher('aes-256-gcm', { key, iv, extra: true, e: false });
+    const decrypted = decipher.update(encrypted);
+
+    assert.strictEqual(Buffer.from(decrypted).toString(), 'top secret');
+
+    const cipher2 = Utils.getCipher('xchacha20-poly1305', { key, iv: iv2, extra: true, e: true });
+    const encrypted2 = cipher2.update(msg);
+
+    const decipher2 = Utils.getCipher('xchacha20-poly1305', { key, iv: iv2, extra: true, e: false });
+    const decrypted2 = decipher2.update(encrypted2);
+    assert.strictEqual(Buffer.from(decrypted2).toString(), 'top secret');
+  });
+
+  await t.test('Argon2id Determinism', async () => {
+    const pass = Utils.buff('password123');
+    const salt = Buffer.alloc(16, 0x01);
+    const opts = { msg: pass, salt, t: 2, m: 16384 };
+
+    const hash1 = await Utils.argon2('argon2id', opts);
+    const hash2 = await Utils.argon2('argon2id', opts);
+    assert.deepEqual(hash1, hash2);
+  });
+
+  await t.test('Modern XOF (BLAKE3 & SHAKE)', () => {
+    const b3 = Utils.getHash('blake3', { extra: true }).update(Utils.buff('hi')).digest();
+    assert.strictEqual(b3.length, 32);
+
+    const shake = Utils.getXof('shake256', { extra: true, o: { dkLen: 64 } }).update(Utils.buff('hi')).digest();
+    assert.strictEqual(shake.length, 64);
+  });
+});
+
+test('Mnemonics (BIP39 & iKey)', async (t) => {
+  await t.test('BIP39 Entropy Recovery', async () => {
+    const entropy = await Utils.hardenRNG(16);
+    const mnemonic = Utils.bip39.toMnemonic(entropy);
+    const recovered = Utils.bip39.toEntropy(mnemonic);
+    assert.strictEqual(recovered, entropy.toString('hex'));
+  });
+
+  await t.test('BIP39 Seed Derivation', () => {
+    const mnemonic = 'abandon '.repeat(11) + 'about';
+    const seed = Utils.bip39.toSeed(mnemonic);
+    assert.strictEqual(seed.length, 64);
+  });
+
+  await t.test('iKey 256-bit Generation', async () => {
+    const phrase = await Utils.ikey.generate(256);
+    assert.strictEqual(phrase.split(' ').length, 17, '256-bit iKey should be 17 words');
+    assert.ok(Utils.ikey.validate(phrase));
+  });
+
+  await t.test('Mnemonic Validation', () => {
+    const valid = 'abandon '.repeat(11) + 'about';
+    assert.strictEqual(Utils.bip39.validate(valid), true);
+    assert.strictEqual(Utils.bip39.validate('wrong mnemonic here'), false);
+  });
+});
+````
+
+## File: .gitignore
+````
+# Standard-Verzeichnisse und Abhängigkeiten
+node_modules/
+temp/
+
+# Systemdateien und Locks
+.DS_Store
+````
+
+## File: .nomedia
+````
+
+````
+
+## File: .npmignore
+````
+# Standard-Verzeichnisse und Abhängigkeiten
+.git/
+.github/
+docs/
+node_modules/
+temp/
+test/
+
+# SHA256 Prüfsummen ausschließen
+src/**/*.sha256
+dist/**/*.sha256
+**/*.sha256
+*.sha256
+
+# Systemdateien und Locks
+package-lock.json
+.DS_Store
+.gitignore
+
+# Automatisierungsskript
+index.html
+llms-full.txt
+update.sh
+verify.sh
+````
+
+## File: index.html
+````html
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="icon" type="image/x-icon" href="https://cdn.jsdelivr.net/gh/harnuma9/donate@main/assets/favicon.ico?v=1" />
+    <meta http-equiv="refresh" content="0; url=./docs/@stless/utils/1.1.3/index.html" />
+  </head>
+  <body>
+    <p>Redirecting to documentation...</p>
+  </body>
+</html>
+````
+
+## File: LICENSE
+````
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2026 Aries Harbinger
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+````
+
+## File: package.json
+````json
+{
+  "name": "@stless/utils",
+  "version": "1.1.3",
+  "description": "Shared post-quantum cryptographic and encoding utilities designed for relevant frameworks and modern usage.",
+  "author": "Aries Harbinger",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/harnuma9/stless-utils#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harnuma9/stless-utils.git"
+  },
+  "funding": [
+    {
+      "type": "individual",
+      "url": "https://harnuma9.github.io/donate/"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/harnuma9/stless-utils/issues"
+  },
+  "type": "module",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./dist/index.min.js",
+      "require": "./dist/index.min.js"
+    },
+    "./65536": {
+      "types": "./src/65536-wordlist.d.ts",
+      "import": "./dist/65536-wordlist.min.js",
+      "require": "./dist/65536-wordlist.min.js"
+    },
+    "./fwrap": {
+      "types": "./src/fwrap.d.ts",
+      "import": "./dist/fwrap.min.js",
+      "require": "./dist/fwrap.min.js"
+    },
+    "./noble": {
+      "types": "./src/noble.d.ts",
+      "import": "./dist/noble.min.js",
+      "require": "./dist/noble.min.js"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "bash update.sh",
+    "verify": "bash verify.sh",
+    "test": "node --test ./test/test_suite.js",
+    "check": "npm run test && npm run verify",
+    "prepublishOnly": "npm run check"
+  },
+  "keywords": [
+    "cryptography",
+    "post-quantum",
+    "fips-202",
+    "fips-203",
+    "fips-204",
+    "fips-205",
+    "security",
+    "zero-fill",
+    "constant-time",
+    "mnemonic",
+    "wallet",
+    "bip39",
+    "argon2id",
+    "timing-safe",
+    "framework",
+    "encoding",
+    "bech32",
+    "base58",
+    "qr-code",
+    "util"
+  ],
+  "dependencies": {
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
+    "@noble/post-quantum": "^0.6.1",
+    "@scure/base": "^2.2.0",
+    "bip39": "^3.1.0",
+    "qr": "^0.6.0",
+    "ths-csprng": "^1.2.2",
+    "wif": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "docdash": "^2.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
+````
+
+## File: README.md
+````markdown
+# @stless/utils
+
+[![npm version](https://img.shields.io/npm/v/@stless/utils.svg)](https://www.npmjs.com/package/@stless/utils)
+![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-green)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/harnuma9/stless-utils/blob/main/LICENSE)
+![Verify Status](https://github.com/harnuma9/stless-utils/actions/workflows/verify.yml/badge.svg)
+[![Socket Badge](https://badge.socket.dev/npm/package/@stless/utils/1.1.3)](https://badge.socket.dev/npm/package/@stless/utils/1.1.3)
+[![Donate](https://img.shields.io/badge/@Harnuma9-Donate-FF4D4D)](https://harnuma9.github.io/donate/)
+
+<br />
+
+**High-performance, auditable, memory-safe cryptographic and encoding utilities** with first-class **post-quantum** support.
+
+Built for modern security-critical applications: wallets, key management, secure messaging, and frameworks that need battle-tested primitives without bloat.
+
+<br />
+
+> **Full API context optimized for AI assistants and contributors** is available in [`llms-full.txt`](https://github.com/harnuma9/stless-utils/blob/main/llms-full.txt).
+
+<br />
+<br />
+
+## ✨ Features
+
+- **[Post-Quantum Cryptography](https://csrc.nist.gov/projects/post-quantum-cryptography)** (FIPS 203/204/205 + NIST Round 3)
+  - **[ML-KEM](https://csrc.nist.gov/pubs/fips/203/ipd)** (Kyber), **[ML-DSA](https://csrc.nist.gov/pubs/fips/204/ipd)** (Dilithium), **[SLH-DSA](https://csrc.nist.gov/pubs/fips/205/ipd)** (SPHINCS+), **[Falcon](https://falcon-sign.info/)**
+- **Modern Symmetric Crypto** (**[AES-GCM](https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf)**, **[XChaCha20-Poly1305](https://datatracker.ietf.org/doc/html/rfc8439)**, etc.)
+- **Memory Safety** — **[constant-time comparison](https://www.chosenplaintext.ca/articles/beginners-guide-constant-time-cryptography.html)**, **[secure zeroing](https://owasp.org/www-community/vulnerabilities/Memory_leak)**, temporal hardening
+- **Two Mnemonic Systems**
+  - Standard **[BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)** (multi-language)
+  - **iKey** — high-density 65,536-word mnemonic (16 bits per word)
+- **KDF**: **[Argon2id](https://www.rfc-editor.org/rfc/rfc9106.html)** (native Node.js)
+- **Encoding**: **[base16/32/58/64](https://datatracker.ietf.org/doc/html/rfc4648)**, **[bech32(m)](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki)**, **[WIF](https://en.bitcoin.it/wiki/Wallet_import_format)**, QR codes (GIF/SVG/Terminal)
+- **Extra**: Leverages **[@noble/*](https://github.com/paulmillr/noble-hashes)** for browser compatibility
+- **Auditable** — tiny surface, **[strict mode](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode)**, checksum verification on build
+
+<br />
+
+---
+
+<br />
+
+## 📦 Installation
+
+```bash
+npm install @stless/utils
+# or
+yarn add @stless/utils
+```
+
+**Requires Node.js ≥ 24**
+
+<br />
+<br />
+
+## 🚀 Quick Start
+
+```javascript
+// ESM
+import Utils from '@stless/utils';
+// or CJS
+const { Utils } = require('@stless/utils');
+
+// Secure random bytes (with optional temporal hardening)
+const key = await Utils.hardenRNG(32, true);
+
+// Argon2id KDF
+const hash = await Utils.argon2('argon2id', {
+  msg: 'my password',
+  salt: await Utils.hardenRNG(16)
+});
+
+// Post-Quantum Key Encapsulation
+const { publicKey, secretKey } = Utils.mlkem('ml-kem-768', {
+  seed: await Utils.hardenRNG(64)
+});
+
+// Post-Quantum Key Signature
+const { publicKey, secretKey } = Utils.mldsa('ml-dsa-65', {
+  seed: await Utils.hardenRNG(32)
+});
+```
+
+<br />
+
+## 📘 API Documentation
+
+### Core Utilities
+
+```javascript
+// Buffer handling & memory safety
+const buf = Utils.buff('hello', { encoding: 'utf-8' });
+Utils.zeroBuf(buf);                    // secure wipe
+Utils.compare(a, b, { harden: true }); // constant-time
+
+// Clones an allocated space with optional memory-purging of original source
+const clone = Utils.copyBuf(buf, buf.length, true); // true = zero-wipes 'buf' instantly
+
+// Evaluates general truthiness or checks length limits >= 1
+const hasContent = Utils.bool(input, true); 
+
+// Randomness
+const entropy = await Utils.hardenRNG(32, isHardenRNG, conf);
+
+// Try/catch sugar
+const result = await Utils.wrapTry(async () => { ... });
+```
+
+### Type Primitives & Extended Codecs
+
+```javascript
+// Strict Primitive Assertions (Null-Safe)
+Utils.isString('Hello World');      // true
+Utils.isNumber(2026);         // true
+Utils.isBoolean(false);       // true
+Utils.isObject({ foo: 'bar' }); // true (returns false for null inputs)
+Utils.isUndefined(undefined); // true
+Utils.isFunction(() => {});   // true
+Utils.isSymbol(Symbol('id')); // true
+Utils.isBigInt(100n);         // true
+
+// Inline Short-Form Codec Processing
+const hexString = Utils.toBase16(rawData);
+const decodedBuffer = Utils.fromBase16(hexString);
+
+// All base codecs accept an optional 'clear' flag to zero-wipe source bytes after processing
+const b64UrlEncoded = Utils.toBase64Url(sensitiveBuffer, true); // clear=true
+```
+
+### Encoding & Formats
+
+```javascript
+// Base codecs
+const b58 = Utils.codec('base58').encode(data);
+const decoded = Utils.codec('base58').decode(b58);
+
+Utils.codec('bech32').encode(...);
+Utils.codec('base64url').encode(...);
+
+// Wallet Import Format
+const wif = Utils.wif.encode(privateKey, { compressed: true });
+const { privateKey: pk } = Utils.wif.decode(wif);
+```
+
+### QR Codes
+
+```javascript
+// GIF (native, no canvas)
+const gif = Utils.qr.toImage('https://example.com', { scale: 6 });
+
+// SVG
+const svg = Utils.qr.toSVG(data);
+
+// Terminal
+console.log(Utils.qr.toTerminal(data));
+```
+
+### Cryptography
+
+```javascript
+const key = await Utils.hardenRNG(32);
+const msg = Utils.buff('top secret');
+
+// 1. Unified Noble Access (extra: true)
+// Works for AES-GCM, XChaCha20, XSalsa20, etc.
+const iv = await Utils.hardenRNG(24); // 24 bytes for X-variants
+const cipher = Utils.getCipher('xchacha20-poly1305', {
+    key, iv, extra: true, e: true, buffer: true
+});
+
+const encrypted = Buffer.concat([cipher.update(msg), cipher.final()]);
+
+// 2. Node.js Native Access (extra: false)
+const iv2 = await Utils.hardenRNG(16);
+const cipher2 = Utils.getCipher('aes-256-ctr', {
+    key, iv: iv2, e: true
+});
+
+const encrypted2 = Buffer.concat([cipher2.update(msg), cipher2.final()]);
+```
+
+### Hashes & MACs
+
+```javascript
+const hash = Utils.getHash('sha3-512', { extra: true })
+  .update(data)
+  .digest();
+
+const hmac = Utils.getHmac('sha256', { key });
+```
+
+### XOF & KMAC
+
+```javascript
+const xof = Utils.getXof('shake256', { extra: true, o: { dkLen: 64 } });
+const kmac = Utils.getKmac('kmac256', { key });
+```
+
+<br />
+
+## Post-Quantum Cryptography
+
+```javascript
+// ML-KEM (Key Encapsulation)
+const kem = Utils.mlkem('ml-kem-1024', { seed });
+
+// ML-DSA (Signatures)
+const dsa = Utils.mldsa('ml-dsa-87', { seed });
+
+// SLH-DSA
+const sphincs = Utils.slhdsa('slh-dsa-sha2-256f', { seed });
+
+// Falcon
+const falcon = Utils.falcon('falcon1024', {
+    seed
+    clear: true,  // Clear the input seed
+});
+```
+
+All PQC functions are **deterministic** when given the same seed.
+See **[@noble/post-quantum](https://npmjs.com/package/@noble/post-quantum)** for full documentations and usage.
+
+<br />
+
+## Mnemonics
+
+### BIP39 (Standard)
+
+```javascript
+const mnemonic = Utils.bip39.generate(256, { lang: 'english' });
+const seed = Utils.bip39.toSeed(mnemonic, { password: 'optional' });
+const valid = Utils.bip39.validate(mnemonic);
+```
+
+### iKey (High-Density 65,536-word list)
+
+```javascript
+// Generate 256-bit iKey (17 words including checksum)
+const ikey = await Utils.ikey.generate(256, { isHardenRNG: true });
+
+// Validate
+const isValid = Utils.ikey.validate(ikey);
+
+// Conversion
+const bytes = Utils.ikey.toBytes(phrase);
+const words = Utils.ikey.toWords(buffer);
+```
+
+<br />
+<br />
+
+## 🔒 Security Notes
+
+* All **[Noble ciphers](https://npmjs.com/package/@noble/ciphers)** are wrapped to support the standard `.update(data)` and `.final()` pattern, regardless of whether the underlying algorithm is a one-shot function or a stateful class.
+* All sensitive buffers are zeroed after use when `clear: true` is passed.
+* `compare()` uses `timingSafeEqual` (or hardened double-hash mode).
+* `hardenRNG` integrates [ths-csprng wrapper](https://www.npmjs.com/package/ths-csprng) for temporal hardening.
+* Checksums are generated and verified on every build [verify.sh](https://github.com/harnuma9/stless-utils/blob/main/verify.sh).
+* Prefer `extra: true` for Noble implementations in cross-platform code.
+
+**Always** use the library's memory management helpers when handling secrets.
+
+<br />
+
+---
+
+<br />
+
+## 🔍 Algorithm Discovery
+
+Instead of maintaining static lists, you can query the engine directly for all supported primitives.
+
+```javascript
+// Get everything: PQC, Noble (extra), and Native (crypto)
+const registry = Utils.names;
+
+console.log(registry.pqc);    // All Noble Post-Quantum algorithms
+console.log(registry.extra);  // All Noble (Extra) algorithms
+console.log(registry.crypto); // All secure-filtered native algorithms
+```
+
+<br />
+<br />
+
+## 📃 Supported Algorithm Names
+
+<br />
+
+### Encoding
+
+**`Utils.codec(name)`**
+
+| Category                    | Supported Names |
+|-----------------------------|-----------------|
+| **Standard Bases**          | `base16`, `base32`, `base58`, `base64` |
+| **Flavors**                 | `base58xmr`, `base58xrp`, `base64url`, `base32hex`, `base32crockford`, `base58check` |
+| **Bitcoin / Lightning**     | `bech32`, `bech32m` |
+
+<br />
+
+### KDF
+
+**`Utils.argon2(name = 'argon2id')`**
+
+| Variant     | Name |
+|-------------|------|
+| Default     | `argon2id` |
+| Alternatives| `argon2i`, `argon2d` |
+
+<br />
+
+### Post-Quantum Functions
+
+| Function              | Supported Names |
+|-----------------------|-----------------|
+| `Utils.mlkem()`       | `ml-kem-512`, `ml_kem512`, `ml-kem-768`, `ml_kem768`, `ml-kem-1024`, `ml_kem1024` |
+| `Utils.mldsa()`       | `ml-dsa-44`, `ml_dsa44`, `ml-dsa-65`, `ml_dsa65`, `ml-dsa-87`, `ml_dsa87` |
+| `Utils.slhdsa()`      | `slh-dsa-sha2-128f`, `slh-dsa-sha2-128s`, `slh-dsa-sha2-192f`, `slh-dsa-sha2-192s`,<br>`slh-dsa-sha2-256f`, `slh-dsa-sha2-256s`,<br>`slh-dsa-shake-128f`, `slh-dsa-shake-128s`, `slh-dsa-shake-192f`, `slh-dsa-shake-192s`,<br>`slh-dsa-shake-256f`, `slh-dsa-shake-256s` |
+| `Utils.falcon()`      | `falcon512`, `falcon1024` |
+
+<br />
+
+### Noble Direct Access
+
+**`Utils.noble(name)`**
+
+| Category                    | Names |
+|-----------------------------|-------|
+| **Ciphers**                 | `aes`, `chacha`, `salsa` |
+| **Hashes / HMAC / XOFs**    | `noble_hmac`, `sha2`, `sha3`, `sha3_addons`, `blake3_mod`, `blake2`, `legacy` |
+| **PQC: ML-KEM**             | `ml_kem512`, `ml_kem_512`, `ml_kem768`, `ml_kem_768`, `ml_kem1024`, `ml_kem_1024` |
+| **PQC: ML-DSA**             | `ml_dsa44`, `ml_dsa_44`, `ml_dsa65`, `ml_dsa_65`, `ml_dsa87`, `ml_dsa_87` |
+| **PQC: Signature / Other**  | `slh_dsa`, `falcon512`, `falcon1024` |
+
+<br />
+
+### Node.js Built-in Crypto (`extra: false`)
+
+| Function                | Supported Algorithms |
+|-------------------------|----------------------|
+| `Utils.getCipher()`     | `aes-256-gcm`, `aes-256-ctr`, `aes-256-cfb`, `aes-256-cfb1`, `aes-256-cfb8`, `aes-256-ocb`, `aes-256-ofb`, `aes-256-xts`, `chacha20-poly1305`, `chacha20` |
+| `Utils.getHmac()`       | `sha224`, `sha256`, `sha384`, `sha512`, `sha512-224`, `sha512-256`, `ripemd`, `ripemd160`, `rmd160`, `sha1`, `md5`, `md5-sha1` |
+| `Utils.getHash()`       | `sha224`, `sha256`, `sha384`, `sha512`, `sha512-224`, `sha512-256`, `sha3-224`, `sha3-256`, `sha3-384`, `sha3-512`, `blake2b512`, `blake2s256`, `ripemd`, `ripemd160`, `rmd160`, `sha1`, `md5`, `md5-sha1` |
+| `Utils.getXof()`        | `shake128`, `shake256` |
+
+<br />
+
+### Noble Implementations (`extra: true`)
+
+**Ciphers**
+
+| Category       | Supported Names |
+|----------------|-----------------|
+| **AES**        | `aes-256-gcm`, `aes-256-ctr`, `aes-256-cfb`, `aes-256-siv` |
+| **ChaCha20**   | `chacha20-poly1305`, `xchacha20-poly1305`, `chacha20`, `xchacha20` |
+| **Salsa20**    | `xsalsa20-poly1305`, `salsa20`, `xsalsa20` |
+
+<br />
+
+**HMAC, Hash & XOF**
+
+| Function                | Supported Names |
+|-------------------------|-----------------|
+| `Utils.getHmac()`       | `sha224`, `sha256`, `sha384`, `sha512`, `sha512-224`, `sha512-256`, `ripemd160`, `sha1`, `md5` |
+| `Utils.getHash()`       | `sha224`, `sha256`, `sha384`, `sha512`, `sha512-224`, `sha512-256`,<br>`sha3-224`, `sha3-256`, `sha3-384`, `sha3-512`,<br>`keccak-224`, `keccak-256`, `keccak-384`, `keccak-512`,<br>`blake2s256`, `blake2b512`, `blake3`, `ripemd160`, `sha1`, `md5` |
+| `Utils.getXof()`        | `shake128`, `shake256`, `cshake128`, `cshake256`, `turboshake128`, `turboshake256`, `k12`, `kt128`, `kt256` |
+
+<br />
+
+**Keyed XOF**
+
+| Function               | Supported Names |
+|------------------------|-----------------|
+| `Utils.getKmac()`      | `kmac128`, `kmac256` |
+
+<br />
+
+> [!TIP]
+> 
+> **Consistency & Compatibility**: Use `extra: true` to prioritize Noble implementations for maximum cross-platform consistency and browser support.
+>
+> **Flexible Naming**: The library supports both **kebab-case** (`ml-kem-512`) and **snake_case** (`ml_kem_512`) for all algorithms (Noble, PQC, Cipher, Hash, HMAC, and XOF). As long as the name is lowercase and valid, the primitive will be resolved correctly.
+
+<br />
+
+---
+
+<br />
+
+## 🛠 ️Development & Verification
+
+```bash
+npm run check        # test + verify checksums
+npm run build        # minify + generate docs + checksums
+npm test
+```
+
+<br />
+
+The project uses:
+
+* `terser` for minification
+* SHA-256 checksums for all built files
+* Strict mode + comprehensive test suite
+
+<br />
+
+---
+
+<br />
+
+## ⭐ Contributor(s)
+
+<a href="https://github.com/harnuma9/stless-utils/graphs/contributors">
+  <img alt="contributors" src="https://contrib.rocks/image?repo=harnuma9/stless-utils"/>
+</a>
+
+<br />
+<br />
+<br />
+
+## 📄 License
+
+Licensed under the **Apache License, Version 2.0**; a robust, permissive license that includes an explicit grant of patent rights and provides protection against contributor liability.
+
+Copyright © 2026 Aries Harbinger. See the **[LICENSE](https://github.com/harnuma9/stless-utils/blob/main/LICENSE)** file for full details. 
+
+<br />
+<br />
+
+## 🔗 Links
+
+* [Github Repository](https://github.com/harnuma9/stless-utils)
+* [npm Package](https://www.npmjs.com/package/@stless/utils)
+* Full AI Context **[llms-full.txt](https://github.com/harnuma9/stless-utils/blob/main/llms-full.txt)** (for contributors / LLM assistants)
+
+<br />
+<br />
+
+**Made with security, auditability, and developer experience in mind.**
+
+<br />
+<br />
+<br />
+<br />
+````
+
+## File: update.sh
+````bash
+#!/usr/bin/env bash
+
+# Bei Fehlern sofort abbrechen (Strict Mode)
+set -euo pipefail
+
+# Sicherstellen, dass Abhängigkeiten installiert sind
+if [ ! -d "node_modules" ]; then
+    echo "❌ Error: node_modules not found. Please run 'npm install' first."
+    exit 1
+fi
+
+echo "Generating Type Definitions..."
+# Alte Typdefinitionen bereinigen
+rm -f ./src/*.d.ts 2>/dev/null
+npx tsc src/*.js --declaration --allowJs --emitDeclarationOnly --outDir src --rootDir ./src --module NodeNext --moduleResolution NodeNext --target esnext 2>/dev/null
+
+# Verzeichnisstruktur nach der tsc-Kompilierung korrigieren
+if [ -d "./src/src" ]; then
+    mv -f ./src/src/*.* ./src 2>/dev/null
+    rm -rf ./src/src 2>/dev/null
+fi
+
+echo "Generating Documentation..."
+# Dokumentationsordner zurücksetzen
+# rm -rf docs 2>/dev/null
+npx jsdoc src/index.js README.md \
+    -t ./node_modules/docdash \
+    -d docs \
+    --package package.json || echo '⚠️ JSDoc hints ignored.'
+
+echo "Minifying Distribution..."
+# Dist-Ordner für die Veröffentlichung vorbereiten
+rm -rf dist 2>/dev/null
+mkdir -p dist 2>/dev/null
+
+# Funktion zur Minimierung von JS-Dateien inklusive Source Maps
+minify() {
+    echo "  > Minifying $1..."
+    npx terser "src/$1.js" -o "dist/$1.min.js" \
+        --compress --mangle \
+        --source-map "url='$1.min.js.map',filename='dist/$1.min.js.map'"
+}
+
+# Hauptmodule verarbeiten
+minify "index"
+minify "fwrap"
+minify "noble"
+
+echo "  > Processing: 65536-wordlist.js (Compression only)..."
+# Wortliste komprimieren (ohne Source Map, da nur Daten)
+npx terser src/65536-wordlist.js -o dist/65536-wordlist.min.js --compress --mangle
+
+echo "Generating SHA-256 Checksums..."
+
+# Funktion zur Erstellung der Prüfsummen
+generate_hashes() {
+    local dir=$1
+    # Dateien mit passenden Endungen finden
+    find "$dir" -maxdepth 1 -type f \( -name "*.js" -o -name "*.d.ts" -o -name "*.min.js" -o -name "*.min.js.map" \) | while read -r file; do
+        echo "  > Hashing: $file"
+        # Hash generieren und als .sha256 Datei speichern
+        shasum -a 256 "$file" > "$file.sha256"
+    done
+}
+
+# Prüfsummen für src und dist generieren
+generate_hashes "./src"
+generate_hashes "./dist"
+
+# Verifizierungs-Skript aufrufen
+if [ -f "./verify.sh" ]; then
+    chmod +x ./verify.sh 2>/dev/null || true
+
+    # Wir prüfen erst, ob wir Ausführrechte haben, sonst direkt per bash
+    if [ -x "./verify.sh" ]; then
+        ./verify.sh
+    else
+        bash ./verify.sh
+    fi
+else
+    echo "❌ Error: verify.sh not found!"
+    exit 1
+fi
+
+echo "Generating AI-Ready Documentation..."
+# KI-optimierte Dokumentation generieren (llms-full.txt)
+rm -f repomix-output.xml llms-full.txt 2>/dev/null
+npx --yes repomix --style markdown \
+    --output llms-full.txt \
+    --ignore ".git/**,.github/**,node_modules/**,dist/**,docs/**,temp/**,**/*.png,**/*.ico,**/*.svg,**/*.sha256,**/*.map,**/*.min.js,**/*.eot,**/*.ttf,**/*.woff*,src/65536-wordlist.js"
+
+echo "Build Complete! ✅"
+exit 0
+````
+
+## File: verify.sh
+````bash
+#!/usr/bin/env bash
+
+# Bei Fehlern sofort abbrechen (Strict Mode)
+set -euo pipefail
+
+echo "Verifying Checksums..."
+
+# Funktion zur Überprüfung der Prüfsummen 
+verify_hashes() {
+    local dir=$1
+    echo "  > Verifying $dir..."
+
+    # Prüfen, ob der Ordner überhaupt existiert 
+    if [ ! -d "$dir" ]; then
+        echo "  ⚠️  Warning: Directory $dir not found."
+        return
+    fi
+
+    # Wir nutzen eine Schleife, um Fehler sauber abzufangen
+    while read -r hashfile; do
+        if ! shasum -a 256 -c "$hashfile"; then
+            echo "❌ Critical Error: Checksum mismatch in $hashfile"
+            exit 1
+        fi
+    done < <(find "$dir" -maxdepth 1 -name "*.sha256")
+}
+
+verify_hashes "./src"
+verify_hashes "./dist"
+
+echo "Verification Successful!"
+exit 0
+````

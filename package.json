@@ -1,0 +1,94 @@
+{
+  "name": "@stless/utils",
+  "version": "1.1.3",
+  "description": "Shared post-quantum cryptographic and encoding utilities designed for relevant frameworks and modern usage.",
+  "author": "Aries Harbinger",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/harnuma9/stless-utils#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harnuma9/stless-utils.git"
+  },
+  "funding": [
+    {
+      "type": "individual",
+      "url": "https://harnuma9.github.io/donate/"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/harnuma9/stless-utils/issues"
+  },
+  "type": "module",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./dist/index.min.js",
+      "require": "./dist/index.min.js"
+    },
+    "./65536": {
+      "types": "./src/65536-wordlist.d.ts",
+      "import": "./dist/65536-wordlist.min.js",
+      "require": "./dist/65536-wordlist.min.js"
+    },
+    "./fwrap": {
+      "types": "./src/fwrap.d.ts",
+      "import": "./dist/fwrap.min.js",
+      "require": "./dist/fwrap.min.js"
+    },
+    "./noble": {
+      "types": "./src/noble.d.ts",
+      "import": "./dist/noble.min.js",
+      "require": "./dist/noble.min.js"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "bash update.sh",
+    "verify": "bash verify.sh",
+    "test": "node --test ./test/test_suite.js",
+    "check": "npm run test && npm run verify",
+    "prepublishOnly": "npm run check"
+  },
+  "keywords": [
+    "cryptography",
+    "post-quantum",
+    "fips-202",
+    "fips-203",
+    "fips-204",
+    "fips-205",
+    "security",
+    "zero-fill",
+    "constant-time",
+    "mnemonic",
+    "wallet",
+    "bip39",
+    "argon2id",
+    "timing-safe",
+    "framework",
+    "encoding",
+    "bech32",
+    "base58",
+    "qr-code",
+    "util"
+  ],
+  "dependencies": {
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
+    "@noble/post-quantum": "^0.6.1",
+    "@scure/base": "^2.2.0",
+    "bip39": "^3.1.0",
+    "qr": "^0.6.0",
+    "ths-csprng": "^1.2.2",
+    "wif": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "docdash": "^2.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

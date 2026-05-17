@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Home - Documentation</title>
+    <link rel="icon" type="image/x-icon" href="https://cdn.jsdelivr.net/gh/harnuma9/donate@main/assets/favicon.ico?v=1" />
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#Utils">Utils</a></li><li><a href="global.html#alloc">alloc</a></li><li><a href="global.html#argon2">argon2</a></li><li><a href="global.html#bip39">bip39</a></li><li><a href="global.html#bool">bool</a></li><li><a href="global.html#buff">buff</a></li><li><a href="global.html#codec">codec</a></li><li><a href="global.html#compare">compare</a></li><li><a href="global.html#copyBuf">copyBuf</a></li><li><a href="global.html#falcon">falcon</a></li><li><a href="global.html#getCipher">getCipher</a></li><li><a href="global.html#getHash">getHash</a></li><li><a href="global.html#getHmac">getHmac</a></li><li><a href="global.html#getKmac">getKmac</a></li><li><a href="global.html#getXof">getXof</a></li><li><a href="global.html#hardenRNG">hardenRNG</a></li><li><a href="global.html#ikey">ikey</a></li><li><a href="global.html#isEmptyObject">isEmptyObject</a></li><li><a href="global.html#isTrueObject">isTrueObject</a></li><li><a href="global.html#mldsa">mldsa</a></li><li><a href="global.html#mlkem">mlkem</a></li><li><a href="global.html#names">names</a></li><li><a href="global.html#noble">noble</a></li><li><a href="global.html#parseURI">parseURI</a></li><li><a href="global.html#qr">qr</a></li><li><a href="global.html#shuffleArr">shuffleArr</a></li><li><a href="global.html#slhdsa">slhdsa</a></li><li><a href="global.html#splitFormat">splitFormat</a></li><li><a href="global.html#ths_utils">ths_utils</a></li><li><a href="global.html#ths_wrapper">ths_wrapper</a></li><li><a href="global.html#toStr">toStr</a></li><li><a href="global.html#wif">wif</a></li><li><a href="global.html#wrapTry">wrapTry</a></li><li><a href="global.html#wrapTrySync">wrapTrySync</a></li><li><a href="global.html#xorBytes">xorBytes</a></li><li><a href="global.html#zeroBuf">zeroBuf</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+
+    
+
+
+
+    
+
+
+    <section class="package">
+        <h3>@stless/utils 1.1.3</h3>		
+    </section>
+
+
+
+
+
+
+
+
+
+    
+
+
+
+    <section class="readme usertext">
+        <article><h1>@stless/utils</h1>
+<p><a href="https://www.npmjs.com/package/@stless/utils"><img src="https://img.shields.io/npm/v/@stless/utils.svg" alt="npm version"></a>
+<img src="https://img.shields.io/badge/Node.js-%3E%3D24-green" alt="Node.js">
+<a href="https://github.com/harnuma9/stless-utils/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
+<img src="https://github.com/harnuma9/stless-utils/actions/workflows/verify.yml/badge.svg" alt="Verify Status">
+<a href="https://badge.socket.dev/npm/package/@stless/utils/1.1.3"><img src="https://badge.socket.dev/npm/package/@stless/utils/1.1.3" alt="Socket Badge"></a>
+<a href="https://harnuma9.github.io/donate/"><img src="https://img.shields.io/badge/@Harnuma9-Donate-FF4D4D" alt="Donate"></a></p>
+<br />
+<p><strong>High-performance, auditable, memory-safe cryptographic and encoding utilities</strong> with first-class <strong>post-quantum</strong> support.</p>
+<p>Built for modern security-critical applications: wallets, key management, secure messaging, and frameworks that need battle-tested primitives without bloat.</p>
+<br />
+<blockquote>
+<p><strong>Full API context optimized for AI assistants and contributors</strong> is available in <a href="https://github.com/harnuma9/stless-utils/blob/main/llms-full.txt"><code>llms-full.txt</code></a>.</p>
+</blockquote>
+<br />
+<br />
+<h2>✨ Features</h2>
+<ul>
+<li><strong><a href="https://csrc.nist.gov/projects/post-quantum-cryptography">Post-Quantum Cryptography</a></strong> (FIPS 203/204/205 + NIST Round 3)
+<ul>
+<li><strong><a href="https://csrc.nist.gov/pubs/fips/203/ipd">ML-KEM</a></strong> (Kyber), <strong><a href="https://csrc.nist.gov/pubs/fips/204/ipd">ML-DSA</a></strong> (Dilithium), <strong><a href="https://csrc.nist.gov/pubs/fips/205/ipd">SLH-DSA</a></strong> (SPHINCS+), <strong><a href="https://falcon-sign.info/">Falcon</a></strong></li>
+</ul>
+</li>
+<li><strong>Modern Symmetric Crypto</strong> (<strong><a href="https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf">AES-GCM</a></strong>, <strong><a href="https://datatracker.ietf.org/doc/html/rfc8439">XChaCha20-Poly1305</a></strong>, etc.)</li>
+<li><strong>Memory Safety</strong> — <strong><a href="https://www.chosenplaintext.ca/articles/beginners-guide-constant-time-cryptography.html">constant-time comparison</a></strong>, <strong><a href="https://owasp.org/www-community/vulnerabilities/Memory_leak">secure zeroing</a></strong>, temporal hardening</li>
+<li><strong>Two Mnemonic Systems</strong>
+<ul>
+<li>Standard <strong><a href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki">BIP39</a></strong> (multi-language)</li>
+<li><strong>iKey</strong> — high-density 65,536-word mnemonic (16 bits per word)</li>
+</ul>
+</li>
+<li><strong>KDF</strong>: <strong><a href="https://www.rfc-editor.org/rfc/rfc9106.html">Argon2id</a></strong> (native Node.js)</li>
+<li><strong>Encoding</strong>: <strong><a href="https://datatracker.ietf.org/doc/html/rfc4648">base16/32/58/64</a></strong>, <strong><a href="https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki">bech32(m)</a></strong>, <strong><a href="https://en.bitcoin.it/wiki/Wallet_import_format">WIF</a></strong>, QR codes (GIF/SVG/Terminal)</li>
+<li><strong>Extra</strong>: Leverages <strong><a href="https://github.com/paulmillr/noble-hashes">@noble/*</a></strong> for browser compatibility</li>
+<li><strong>Auditable</strong> — tiny surface, <strong><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode">strict mode</a></strong>, checksum verification on build</li>
+</ul>
+<br />
+<hr>
+<br />
+<h2>📦 Installation</h2>
+<pre class="prettyprint source lang-bash"><code>npm install @stless/utils
+# or
+yarn add @stless/utils
+</code></pre>
+<p><strong>Requires Node.js ≥ 24</strong></p>
+<br />
+<br />
+<h2>🚀 Quick Start</h2>
+<pre class="prettyprint source lang-javascript"><code>// ESM
+import Utils from '@stless/utils';
+// or CJS
+const { Utils } = require('@stless/utils');
+
+// Secure random bytes (with optional temporal hardening)
+const key = await Utils.hardenRNG(32, true);
+
+// Argon2id KDF
+const hash = await Utils.argon2('argon2id', {
+  msg: 'my password',
+  salt: await Utils.hardenRNG(16)
+});
+
+// Post-Quantum Key Encapsulation
+const { publicKey, secretKey } = Utils.mlkem('ml-kem-768', {
+  seed: await Utils.hardenRNG(64)
+});
+
+// Post-Quantum Key Signature
+const { publicKey, secretKey } = Utils.mldsa('ml-dsa-65', {
+  seed: await Utils.hardenRNG(32)
+});
+</code></pre>
+<br />
+<h2>📘 API Documentation</h2>
+<h3>Core Utilities</h3>
+<pre class="prettyprint source lang-javascript"><code>// Buffer handling & memory safety
+const buf = Utils.buff('hello', { encoding: 'utf-8' });
+Utils.zeroBuf(buf);                    // secure wipe
+Utils.compare(a, b, { harden: true }); // constant-time
+
+// Clones an allocated space with optional memory-purging of original source
+const clone = Utils.copyBuf(buf, buf.length, true); // true = zero-wipes 'buf' instantly
+
+// Evaluates general truthiness or checks length limits >= 1
+const hasContent = Utils.bool(input, true); 
+
+// Randomness
+const entropy = await Utils.hardenRNG(32, isHardenRNG, conf);
+
+// Try/catch sugar
+const result = await Utils.wrapTry(async () => { ... });
+</code></pre>
+<h3>Type Primitives &amp; Extended Codecs</h3>
+<pre class="prettyprint source lang-javascript"><code>// Strict Primitive Assertions (Null-Safe)
+Utils.isString('Hello World');      // true
+Utils.isNumber(2026);         // true
+Utils.isBoolean(false);       // true
+Utils.isObject({ foo: 'bar' }); // true (returns false for null inputs)
+Utils.isUndefined(undefined); // true
+Utils.isFunction(() => {});   // true
+Utils.isSymbol(Symbol('id')); // true
+Utils.isBigInt(100n);         // true
+
+// Inline Short-Form Codec Processing
+const hexString = Utils.toBase16(rawData);
+const decodedBuffer = Utils.fromBase16(hexString);
+
+// All base codecs accept an optional 'clear' flag to zero-wipe source bytes after processing
+const b64UrlEncoded = Utils.toBase64Url(sensitiveBuffer, true); // clear=true
+</code></pre>
+<h3>Encoding &amp; Formats</h3>
+<pre class="prettyprint source lang-javascript"><code>// Base codecs
+const b58 = Utils.codec('base58').encode(data);
+const decoded = Utils.codec('base58').decode(b58);
+
+Utils.codec('bech32').encode(...);
+Utils.codec('base64url').encode(...);
+
+// Wallet Import Format
+const wif = Utils.wif.encode(privateKey, { compressed: true });
+const { privateKey: pk } = Utils.wif.decode(wif);
+</code></pre>
+<h3>QR Codes</h3>
+<pre class="prettyprint source lang-javascript"><code>// GIF (native, no canvas)
+const gif = Utils.qr.toImage('https://example.com', { scale: 6 });
+
+// SVG
+const svg = Utils.qr.toSVG(data);
+
+// Terminal
+console.log(Utils.qr.toTerminal(data));
+</code></pre>
+<h3>Cryptography</h3>
+<pre class="prettyprint source lang-javascript"><code>const key = await Utils.hardenRNG(32);
+const msg = Utils.buff('top secret');
+
+// 1. Unified Noble Access (extra: true)
+// Works for AES-GCM, XChaCha20, XSalsa20, etc.
+const iv = await Utils.hardenRNG(24); // 24 bytes for X-variants
+const cipher = Utils.getCipher('xchacha20-poly1305', {
+    key, iv, extra: true, e: true, buffer: true
+});
+
+const encrypted = Buffer.concat([cipher.update(msg), cipher.final()]);
+
+// 2. Node.js Native Access (extra: false)
+const iv2 = await Utils.hardenRNG(16);
+const cipher2 = Utils.getCipher('aes-256-ctr', {
+    key, iv: iv2, e: true
+});
+
+const encrypted2 = Buffer.concat([cipher2.update(msg), cipher2.final()]);
+</code></pre>
+<h3>Hashes &amp; MACs</h3>
+<pre class="prettyprint source lang-javascript"><code>const hash = Utils.getHash('sha3-512', { extra: true })
+  .update(data)
+  .digest();
+
+const hmac = Utils.getHmac('sha256', { key });
+</code></pre>
+<h3>XOF &amp; KMAC</h3>
+<pre class="prettyprint source lang-javascript"><code>const xof = Utils.getXof('shake256', { extra: true, o: { dkLen: 64 } });
+const kmac = Utils.getKmac('kmac256', { key });
+</code></pre>
+<br />
+<h2>Post-Quantum Cryptography</h2>
+<pre class="prettyprint source lang-javascript"><code>// ML-KEM (Key Encapsulation)
+const kem = Utils.mlkem('ml-kem-1024', { seed });
+
+// ML-DSA (Signatures)
+const dsa = Utils.mldsa('ml-dsa-87', { seed });
+
+// SLH-DSA
+const sphincs = Utils.slhdsa('slh-dsa-sha2-256f', { seed });
+
+// Falcon
+const falcon = Utils.falcon('falcon1024', {
+    seed
+    clear: true,  // Clear the input seed
+});
+</code></pre>
+<p>All PQC functions are <strong>deterministic</strong> when given the same seed.
+See <strong><a href="https://npmjs.com/package/@noble/post-quantum">@noble/post-quantum</a></strong> for full documentations and usage.</p>
+<br />
+<h2>Mnemonics</h2>
+<h3>BIP39 (Standard)</h3>
+<pre class="prettyprint source lang-javascript"><code>const mnemonic = Utils.bip39.generate(256, { lang: 'english' });
+const seed = Utils.bip39.toSeed(mnemonic, { password: 'optional' });
+const valid = Utils.bip39.validate(mnemonic);
+</code></pre>
+<h3>iKey (High-Density 65,536-word list)</h3>
+<pre class="prettyprint source lang-javascript"><code>// Generate 256-bit iKey (17 words including checksum)
+const ikey = await Utils.ikey.generate(256, { isHardenRNG: true });
+
+// Validate
+const isValid = Utils.ikey.validate(ikey);
+
+// Conversion
+const bytes = Utils.ikey.toBytes(phrase);
+const words = Utils.ikey.toWords(buffer);
+</code></pre>
+<br />
+<br />
+<h2>🔒 Security Notes</h2>
+<ul>
+<li>All <strong><a href="https://npmjs.com/package/@noble/ciphers">Noble ciphers</a></strong> are wrapped to support the standard <code>.update(data)</code> and <code>.final()</code> pattern, regardless of whether the underlying algorithm is a one-shot function or a stateful class.</li>
+<li>All sensitive buffers are zeroed after use when <code>clear: true</code> is passed.</li>
+<li><code>compare()</code> uses <code>timingSafeEqual</code> (or hardened double-hash mode).</li>
+<li><code>hardenRNG</code> integrates <a href="https://www.npmjs.com/package/ths-csprng">ths-csprng wrapper</a> for temporal hardening.</li>
+<li>Checksums are generated and verified on every build <a href="https://github.com/harnuma9/stless-utils/blob/main/verify.sh">verify.sh</a>.</li>
+<li>Prefer <code>extra: true</code> for Noble implementations in cross-platform code.</li>
+</ul>
+<p><strong>Always</strong> use the library's memory management helpers when handling secrets.</p>
+<br />
+<hr>
+<br />
+<h2>🔍 Algorithm Discovery</h2>
+<p>Instead of maintaining static lists, you can query the engine directly for all supported primitives.</p>
+<pre class="prettyprint source lang-javascript"><code>// Get everything: PQC, Noble (extra), and Native (crypto)
+const registry = Utils.names;
+
+console.log(registry.pqc);    // All Noble Post-Quantum algorithms
+console.log(registry.extra);  // All Noble (Extra) algorithms
+console.log(registry.crypto); // All secure-filtered native algorithms
+</code></pre>
+<br />
+<br />
+<h2>📃 Supported Algorithm Names</h2>
+<br />
+<h3>Encoding</h3>
+<p><strong><code>Utils.codec(name)</code></strong></p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Supported Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Standard Bases</strong></td>
+<td><code>base16</code>, <code>base32</code>, <code>base58</code>, <code>base64</code></td>
+</tr>
+<tr>
+<td><strong>Flavors</strong></td>
+<td><code>base58xmr</code>, <code>base58xrp</code>, <code>base64url</code>, <code>base32hex</code>, <code>base32crockford</code>, <code>base58check</code></td>
+</tr>
+<tr>
+<td><strong>Bitcoin / Lightning</strong></td>
+<td><code>bech32</code>, <code>bech32m</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<h3>KDF</h3>
+<p><strong><code>Utils.argon2(name = 'argon2id')</code></strong></p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default</td>
+<td><code>argon2id</code></td>
+</tr>
+<tr>
+<td>Alternatives</td>
+<td><code>argon2i</code>, <code>argon2d</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<h3>Post-Quantum Functions</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Supported Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Utils.mlkem()</code></td>
+<td><code>ml-kem-512</code>, <code>ml_kem512</code>, <code>ml-kem-768</code>, <code>ml_kem768</code>, <code>ml-kem-1024</code>, <code>ml_kem1024</code></td>
+</tr>
+<tr>
+<td><code>Utils.mldsa()</code></td>
+<td><code>ml-dsa-44</code>, <code>ml_dsa44</code>, <code>ml-dsa-65</code>, <code>ml_dsa65</code>, <code>ml-dsa-87</code>, <code>ml_dsa87</code></td>
+</tr>
+<tr>
+<td><code>Utils.slhdsa()</code></td>
+<td><code>slh-dsa-sha2-128f</code>, <code>slh-dsa-sha2-128s</code>, <code>slh-dsa-sha2-192f</code>, <code>slh-dsa-sha2-192s</code>,<br><code>slh-dsa-sha2-256f</code>, <code>slh-dsa-sha2-256s</code>,<br><code>slh-dsa-shake-128f</code>, <code>slh-dsa-shake-128s</code>, <code>slh-dsa-shake-192f</code>, <code>slh-dsa-shake-192s</code>,<br><code>slh-dsa-shake-256f</code>, <code>slh-dsa-shake-256s</code></td>
+</tr>
+<tr>
+<td><code>Utils.falcon()</code></td>
+<td><code>falcon512</code>, <code>falcon1024</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<h3>Noble Direct Access</h3>
+<p><strong><code>Utils.noble(name)</code></strong></p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ciphers</strong></td>
+<td><code>aes</code>, <code>chacha</code>, <code>salsa</code></td>
+</tr>
+<tr>
+<td><strong>Hashes / HMAC / XOFs</strong></td>
+<td><code>noble_hmac</code>, <code>sha2</code>, <code>sha3</code>, <code>sha3_addons</code>, <code>blake3_mod</code>, <code>blake2</code>, <code>legacy</code></td>
+</tr>
+<tr>
+<td><strong>PQC: ML-KEM</strong></td>
+<td><code>ml_kem512</code>, <code>ml_kem_512</code>, <code>ml_kem768</code>, <code>ml_kem_768</code>, <code>ml_kem1024</code>, <code>ml_kem_1024</code></td>
+</tr>
+<tr>
+<td><strong>PQC: ML-DSA</strong></td>
+<td><code>ml_dsa44</code>, <code>ml_dsa_44</code>, <code>ml_dsa65</code>, <code>ml_dsa_65</code>, <code>ml_dsa87</code>, <code>ml_dsa_87</code></td>
+</tr>
+<tr>
+<td><strong>PQC: Signature / Other</strong></td>
+<td><code>slh_dsa</code>, <code>falcon512</code>, <code>falcon1024</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<h3>Node.js Built-in Crypto (<code>extra: false</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Supported Algorithms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Utils.getCipher()</code></td>
+<td><code>aes-256-gcm</code>, <code>aes-256-ctr</code>, <code>aes-256-cfb</code>, <code>aes-256-cfb1</code>, <code>aes-256-cfb8</code>, <code>aes-256-ocb</code>, <code>aes-256-ofb</code>, <code>aes-256-xts</code>, <code>chacha20-poly1305</code>, <code>chacha20</code></td>
+</tr>
+<tr>
+<td><code>Utils.getHmac()</code></td>
+<td><code>sha224</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code>, <code>sha512-224</code>, <code>sha512-256</code>, <code>ripemd</code>, <code>ripemd160</code>, <code>rmd160</code>, <code>sha1</code>, <code>md5</code>, <code>md5-sha1</code></td>
+</tr>
+<tr>
+<td><code>Utils.getHash()</code></td>
+<td><code>sha224</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code>, <code>sha512-224</code>, <code>sha512-256</code>, <code>sha3-224</code>, <code>sha3-256</code>, <code>sha3-384</code>, <code>sha3-512</code>, <code>blake2b512</code>, <code>blake2s256</code>, <code>ripemd</code>, <code>ripemd160</code>, <code>rmd160</code>, <code>sha1</code>, <code>md5</code>, <code>md5-sha1</code></td>
+</tr>
+<tr>
+<td><code>Utils.getXof()</code></td>
+<td><code>shake128</code>, <code>shake256</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<h3>Noble Implementations (<code>extra: true</code>)</h3>
+<p><strong>Ciphers</strong></p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Supported Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AES</strong></td>
+<td><code>aes-256-gcm</code>, <code>aes-256-ctr</code>, <code>aes-256-cfb</code>, <code>aes-256-siv</code></td>
+</tr>
+<tr>
+<td><strong>ChaCha20</strong></td>
+<td><code>chacha20-poly1305</code>, <code>xchacha20-poly1305</code>, <code>chacha20</code>, <code>xchacha20</code></td>
+</tr>
+<tr>
+<td><strong>Salsa20</strong></td>
+<td><code>xsalsa20-poly1305</code>, <code>salsa20</code>, <code>xsalsa20</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<p><strong>HMAC, Hash &amp; XOF</strong></p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Supported Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Utils.getHmac()</code></td>
+<td><code>sha224</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code>, <code>sha512-224</code>, <code>sha512-256</code>, <code>ripemd160</code>, <code>sha1</code>, <code>md5</code></td>
+</tr>
+<tr>
+<td><code>Utils.getHash()</code></td>
+<td><code>sha224</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code>, <code>sha512-224</code>, <code>sha512-256</code>,<br><code>sha3-224</code>, <code>sha3-256</code>, <code>sha3-384</code>, <code>sha3-512</code>,<br><code>keccak-224</code>, <code>keccak-256</code>, <code>keccak-384</code>, <code>keccak-512</code>,<br><code>blake2s256</code>, <code>blake2b512</code>, <code>blake3</code>, <code>ripemd160</code>, <code>sha1</code>, <code>md5</code></td>
+</tr>
+<tr>
+<td><code>Utils.getXof()</code></td>
+<td><code>shake128</code>, <code>shake256</code>, <code>cshake128</code>, <code>cshake256</code>, <code>turboshake128</code>, <code>turboshake256</code>, <code>k12</code>, <code>kt128</code>, <code>kt256</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<p><strong>Keyed XOF</strong></p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Supported Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Utils.getKmac()</code></td>
+<td><code>kmac128</code>, <code>kmac256</code></td>
+</tr>
+</tbody>
+</table>
+<br />
+<blockquote>
+<p>[!TIP]</p>
+<p><strong>Consistency &amp; Compatibility</strong>: Use <code>extra: true</code> to prioritize Noble implementations for maximum cross-platform consistency and browser support.</p>
+<p><strong>Flexible Naming</strong>: The library supports both <strong>kebab-case</strong> (<code>ml-kem-512</code>) and <strong>snake_case</strong> (<code>ml_kem_512</code>) for all algorithms (Noble, PQC, Cipher, Hash, HMAC, and XOF). As long as the name is lowercase and valid, the primitive will be resolved correctly.</p>
+</blockquote>
+<br />
+<hr>
+<br />
+<h2>🛠 ️Development &amp; Verification</h2>
+<pre class="prettyprint source lang-bash"><code>npm run check        # test + verify checksums
+npm run build        # minify + generate docs + checksums
+npm test
+</code></pre>
+<br />
+<p>The project uses:</p>
+<ul>
+<li><code>terser</code> for minification</li>
+<li>SHA-256 checksums for all built files</li>
+<li>Strict mode + comprehensive test suite</li>
+</ul>
+<br />
+<hr>
+<br />
+<h2>⭐ Contributor(s)</h2>
+<a href="https://github.com/harnuma9/stless-utils/graphs/contributors">
+  <img alt="contributors" src="https://contrib.rocks/image?repo=harnuma9/stless-utils"/>
+</a>
+<br />
+<br />
+<br />
+<h2>📄 License</h2>
+<p>Licensed under the <strong>Apache License, Version 2.0</strong>; a robust, permissive license that includes an explicit grant of patent rights and provides protection against contributor liability.</p>
+<p>Copyright © 2026 Aries Harbinger. See the <strong><a href="https://github.com/harnuma9/stless-utils/blob/main/LICENSE">LICENSE</a></strong> file for full details.</p>
+<br />
+<br />
+<h2>🔗 Links</h2>
+<ul>
+<li><a href="https://github.com/harnuma9/stless-utils">Github Repository</a></li>
+<li><a href="https://www.npmjs.com/package/@stless/utils">npm Package</a></li>
+<li>Full AI Context <strong><a href="https://github.com/harnuma9/stless-utils/blob/main/llms-full.txt">llms-full.txt</a></strong> (for contributors / LLM assistants)</li>
+</ul>
+<br />
+<br />
+<p><strong>Made with security, auditability, and developer experience in mind.</strong></p>
+<br />
+<br />
+<br />
+<br /></article>
+    </section>
+
+
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun May 17 2026 03:18:33 GMT-0400 (Eastern Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
